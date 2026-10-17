@@ -1,11 +1,11 @@
 MLE-LEGO project release package
 Release date: 2026-10-17
 File count: 123
-Payload bytes: 585477
+Payload bytes: 600214
 
 Included files:
 .gitattributes	89
-.github\ISSUE_TEMPLATE\experiment-execution.yml	2313
+.github\ISSUE_TEMPLATE\experiment-execution.yml	2244
 .gitignore	338
 code\core_system\__init__.py	43
 code\core_system\mle_core\__init__.py	941
@@ -90,14 +90,14 @@ CONTRIBUTING.md	1792
 data\README.md	397
 docs\baseline-freeze-protocol.md	3591
 docs\baseline-research.md	594
-docs\contributor-execution-runbook.md	6148
+docs\contributor-execution-runbook.md	19854
 docs\current-status.md	1532
 docs\decision-model-selection.md	2000
 docs\research-scope.md	15895
 docs\run-report-template.md	973
-docs\server-handoff.md	3928
+docs\server-handoff.md	4159
 docs\technical-one-progress-archive.md	15238
-docs\technical-one-protocol.md	6680
+docs\technical-one-protocol.md	7549
 experiments\README.md	232
 experiments\technology_one\README.md	212
 experiments\technology_three\README.md	113

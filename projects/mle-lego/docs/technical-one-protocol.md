@@ -98,7 +98,19 @@
 4. 所有结果完成后运行 `audit_technology_one_complete.py`。
 5. final test 只在实验协议冻结、审计通过后单独执行，并从主比较统计中隔离。
 
-批量入口：`scripts/run_technology_one_complete_batch.sh`。审计入口：`scripts/audit_technology_one_complete.py`。
+批量入口：`scripts/run_technology_one_complete_batch.sh`。该入口默认跳过组件矩阵；完整五类证据必须显式设置 `RUN_COMPONENT_MATRIX=1`。审计入口：`scripts/audit_technology_one_complete.py`。
+
+完整运行的目录约定如下，审计时必须把这五个 root 分别传入：
+
+```text
+<FORMAL_ROOT>/component-matrix
+<FORMAL_ROOT>/decision-baselines/fixed-harness-react
+<FORMAL_ROOT>/decision-baselines/react-reflexion
+<FORMAL_ROOT>/evolution-comparison/independent
+<FORMAL_ROOT>/evolution-comparison/dependency-aware-joint
+```
+
+贡献者的逐步部署、数据校验、profile 预检、Decision LLM 连通性、两批次 smoke、GPU 排队、进度查询、失败恢复、证据归档和完整审计命令见[技术一贡献者实验执行手册](contributor-execution-runbook.md)。正式 Issue 必须给出精确 commit、私有 profile 哈希、数据哈希、模型版本、seed、batch、预算、GPU 和输出根；不能只写“运行技术一”。
 
 ## 8. 结论边界
 

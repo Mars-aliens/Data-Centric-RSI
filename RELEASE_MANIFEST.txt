@@ -1,7 +1,7 @@
 Data-Centric RSI GitHub release package
 Release date: 2026-10-17
 File count: 134
-Payload bytes: 606901
+Payload bytes: 621639
 
 Included files:
 .gitattributes	100
@@ -13,7 +13,7 @@ docs\architecture.md	1586
 docs\collaboration.md	1643
 docs\project-status.md	3872
 projects\mle-lego\.gitattributes	89
-projects\mle-lego\.github\ISSUE_TEMPLATE\experiment-execution.yml	2313
+projects\mle-lego\.github\ISSUE_TEMPLATE\experiment-execution.yml	2244
 projects\mle-lego\.gitignore	338
 projects\mle-lego\code\core_system\__init__.py	43
 projects\mle-lego\code\core_system\mle_core\__init__.py	941
@@ -98,21 +98,21 @@ projects\mle-lego\CONTRIBUTING.md	1792
 projects\mle-lego\data\README.md	397
 projects\mle-lego\docs\baseline-freeze-protocol.md	3591
 projects\mle-lego\docs\baseline-research.md	594
-projects\mle-lego\docs\contributor-execution-runbook.md	6148
+projects\mle-lego\docs\contributor-execution-runbook.md	19854
 projects\mle-lego\docs\current-status.md	1532
 projects\mle-lego\docs\decision-model-selection.md	2000
 projects\mle-lego\docs\research-scope.md	15895
 projects\mle-lego\docs\run-report-template.md	973
-projects\mle-lego\docs\server-handoff.md	3928
+projects\mle-lego\docs\server-handoff.md	4159
 projects\mle-lego\docs\technical-one-progress-archive.md	15238
-projects\mle-lego\docs\technical-one-protocol.md	6680
+projects\mle-lego\docs\technical-one-protocol.md	7549
 projects\mle-lego\experiments\README.md	232
 projects\mle-lego\experiments\technology_one\README.md	212
 projects\mle-lego\experiments\technology_three\README.md	113
 projects\mle-lego\experiments\technology_two\README.md	116
 projects\mle-lego\pytest.ini	154
 projects\mle-lego\README.md	6304
-projects\mle-lego\RELEASE_MANIFEST.txt	6302
+projects\mle-lego\RELEASE_MANIFEST.txt	6303
 projects\mle-lego\requirements-research.txt	214
 projects\mle-lego\requirements-server.txt	250
 projects\mle-lego\requirements.txt	88

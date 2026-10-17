@@ -6,7 +6,7 @@
 
 本地固定基线是可复现的确定性脚手架，并非论文中的最终 ReAct 基线。外部对照候选及论文、代码和许可证核验记录在 `code/technologies/technology_one/baseline_matrix.json` 和 `baseline_research.md`。外部方法的复现门槛未解决前，不要安排正式服务器运行。
 
-服务器配置样例为 `server_profile.example.json`；Action System 接口契约见 `server_action_contract.json`。规范配置块为 `action_system`；旧私有配置中的 `execution` 仍作为兼容别名读取，并会发出弃用警告。
+服务器配置样例为 `code/technologies/technology_one/server_profile.evolution.qwen.example.json` 和 `server_profile.baseline_matrix.qwen.example.json`；Action System 接口契约见 `code/technologies/technology_one/server_action_contract.json`。规范配置块为 `action_system`；旧私有配置中的 `execution` 仍作为兼容别名读取，并会发出弃用警告。
 
 - `server_preflight.py`：不加载模型，检查数据、哈希、切分锁、方法和未填写的模型占位符。
 - `server_adapters.py`：为 Decision LLM 策略、Task Model 训练器和评估器提供 JSON stdin/stdout 桥接。
@@ -22,7 +22,7 @@
 第一阶段先运行冻结的技术一固定对照，再开展更大的 Decision LLM 对照矩阵。正式使用 final-test 前，依次完成：
 
 1. 准备源码、归一化 JSONL、协议、依赖、冻结清单和基线配置；不要复制凭据或本地虚拟环境。
-2. 填写私有 Qwen 基线配置。`experiment_scope` 应为 `technology_one_baseline`，`final_test_unlocked` 必须为 `false`，Task Model 路径须指向已固定版本的本地模型。
+2. 填写私有 Qwen profile。基线矩阵使用 `experiment_scope: core_matrix`；`final_test_unlocked` 必须为 `false`，Task Model 路径须指向已固定版本的本地模型。自进化实验使用 evolution profile，并保持相同的数据、模型、seed 和候选预算。
 3. 运行基线预检和导入检查。
 4. 使用 `server_technical_one_baseline` 运行一个 pilot seed。
 5. 检查 `summary.json` 中的训练组哈希、selector 截断审计、held-in/held-out 指标、模型来源信息和预算。

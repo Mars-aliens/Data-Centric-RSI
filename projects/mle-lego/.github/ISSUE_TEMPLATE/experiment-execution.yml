@@ -1,78 +1,78 @@
-name: Experiment execution
-description: Assign a reproducible Technology One server run
-title: "experiment: "
+name: 技术一实验执行
+description: 分配一次可复现的技术一服务器运行
+title: "实验："
 labels:
   - experiment
 body:
   - type: markdown
     attributes:
       value: |
-        Fill every execution field before assigning the issue. The contributor must run the recorded commit and return the evidence package.
+        分配 Issue 前填写全部执行字段。贡献者必须运行记录的 commit，并返回可审计证据包。
   - type: input
     id: objective
     attributes:
-      label: Objective
-      description: What research comparison or validation is being executed?
+      label: 实验目的
+      description: 本次执行哪个研究比较或验证？
     validations:
       required: true
   - type: input
     id: commit
     attributes:
-      label: Git commit or tag
-      description: Exact source revision to execute.
+      label: Git commit 或 tag
+      description: 必须执行的精确源码版本。
     validations:
       required: true
   - type: input
     id: profile
     attributes:
-      label: Private profile revision or hash
-      description: Profile is kept off GitHub; record its identifying hash here.
+      label: 私有 profile 版本或哈希
+      description: Profile 不上传 GitHub；在这里记录可识别的版本或哈希。
     validations:
       required: true
   - type: input
     id: data
     attributes:
-      label: Data manifest and SHA256
-      description: Record source revision, split manifest, and hashes.
+      label: 数据清单和 SHA256
+      description: 记录数据来源版本、切分清单和校验和。
     validations:
       required: true
   - type: input
     id: models
     attributes:
-      label: Model revisions
-      description: Record Task Model and Decision LLM IDs and revisions.
+      label: 模型版本
+      description: 记录 Task Model 和 Decision LLM 的 ID 与 revision。
     validations:
       required: true
   - type: input
     id: execution
     attributes:
-      label: Execution parameters
-      description: Record mode, seeds, batches, budgets, GPU, and output root.
+      label: 执行参数
+      description: 记录模式、seed、batch、预算、GPU 和输出根。
     validations:
       required: true
   - type: checkboxes
     id: gates
     attributes:
-      label: Required gates
+      label: 必须通过的门槛
       options:
-        - label: Smoke test is required before formal execution.
+        - label: 正式运行前必须完成 smoke test。
           required: true
-        - label: final_test remains locked.
+        - label: `final_test` 必须保持锁定。
           required: true
-        - label: Results will use a new output root.
+        - label: 结果必须使用新的输出根。
           required: true
-        - label: Dataset and model weights will not be committed.
+        - label: 数据集和模型权重不得提交。
           required: true
   - type: textarea
     id: acceptance
     attributes:
-      label: Completion criteria
-      description: List required summaries, audit command, and evidence location.
+      label: 完成条件
+      description: 列出所需摘要、审计命令和证据位置。
     validations:
       required: true
   - type: textarea
     id: report
     attributes:
-      label: Contributor report
-      description: Contributor fills this after execution using docs/contributor-execution-runbook.md.
+      label: 贡献者报告
+      description: 执行后按 docs/contributor-execution-runbook.md 填写。
       render: text
