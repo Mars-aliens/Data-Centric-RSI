@@ -1,7 +1,7 @@
 Data-Centric RSI GitHub release package
 Release date: 2026-10-17
 File count: 269
-Payload bytes: 1448793
+Payload bytes: 1448850
 
 Included files:
 .gitattributes	100
@@ -16,7 +16,7 @@ docs\project-status.md	3722
 projects\aladdin\.github\ISSUE_TEMPLATE\experiment-execution.md	588
 projects\aladdin\.github\pull_request_template.md	444
 projects\aladdin\.gitignore	494
-projects\aladdin\CONTRIBUTING.md	1510
+projects\aladdin\CONTRIBUTING.md	1567
 projects\aladdin\core_system\__init__.py	43
 projects\aladdin\core_system\configs\shared_core_local.json	512
 projects\aladdin\core_system\demo.py	3163
