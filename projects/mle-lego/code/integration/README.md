@@ -1,9 +1,5 @@
-# Integrated Data-Centric RSI Workflow
+# Data-Centric RSI 集成工作流
 
-Status: planned; the end-to-end integration is not implemented yet.
+状态：规划中；端到端集成尚未实现。
 
-This package is the stable integration boundary for composing the three
-technology modules over the shared `core_system.mle_core` runtime. Technology
-modules must remain independently testable and expose versioned contracts;
-integration code owns cross-module orchestration, configuration, and audit
-provenance rather than reimplementing each technology.
+本目录作为基于共享运行时 `core_system.mle_core` 组合三个技术模块的稳定集成边界。各技术模块必须保持可独立测试并提供带版本的契约；集成代码负责跨模块编排、配置和审计来源信息，不重复实现各技术模块。

@@ -1,16 +1,14 @@
-# Technology Three: Continuous Feedback Selection
+# 技术三：连续反馈选择
 
-Status: planned; no method implementation or experimental result is claimed.
+状态：规划中；尚无方法实现或实验结果。
 
-This package is reserved for methods that select and attribute delayed or
-continuous feedback across long-running data-system executions.
+本目录预留给在长程数据系统运行中选择并归因延迟反馈或连续反馈的方法。
 
-Planned boundaries:
+规划中的模块边界：
 
-- feedback event identity, source-run and release-time tracking;
-- attribution to the data, model, and Harness versions that caused the event;
-- selection policy for incorporating feedback into later decisions;
-- evaluation against fixed and immediate-feedback controls.
+- 反馈事件标识、来源运行和释放时间追踪；
+- 将事件归因到相关数据、模型和 Harness 版本；
+- 决定如何将反馈纳入后续决策的选择策略；
+- 与固定对照及即时反馈对照进行评估。
 
-The module must reuse `core_system.mle_core` contracts and preserve the shared
-held-in, held-out, and final-test separation.
+该模块必须复用 `core_system.mle_core` 契约，并遵守统一的 held-in、held-out 与 final-test 隔离规则。

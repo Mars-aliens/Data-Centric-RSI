@@ -1,171 +1,46 @@
-# LEGO Server Handoff
+# 服务器交接与运行顺序
 
-## Local freeze
+本手册面向负责服务器实验的贡献者。所有正式实验必须关联到已审查的 commit 和 GitHub Issue；不得将服务器私有配置、数据集、模型权重、凭据或运行结果提交到公开仓库。
 
-The local fixed baseline is frozen as a reproducible deterministic scaffold, not
-as the final paper ReAct baseline.
+## 当前基线状态
 
-External comparison candidates and their paper/code/license verification are
-tracked in `baseline_matrix.json` and `baseline_research.md`. Do not schedule
-external-method runs until their reproduction gates are resolved.
+本地固定基线是可复现的确定性脚手架，并非论文中的最终 ReAct 基线。外部对照候选及论文、代码和许可证核验记录在 `code/technologies/technology_one/baseline_matrix.json` 和 `baseline_research.md`。外部方法的复现门槛未解决前，不要安排正式服务器运行。
 
-Server profile and Action System contract:
+服务器配置样例为 `server_profile.example.json`；Action System 接口契约见 `server_action_contract.json`。规范配置块为 `action_system`；旧私有配置中的 `execution` 仍作为兼容别名读取，并会发出弃用警告。
 
-- `server_profile.example.json` is the no-secret configuration template.
-- `server_action_contract.json` defines the Action System model adapter boundaries.
-- The canonical profile block is `action_system`; older private profiles using
-  `execution` remain readable as a compatibility alias and emit a deprecation warning.
-- `server_preflight.py` validates data, hashes, split locks, methods, and
-  unresolved model placeholders without running a model.
-- `server_adapters.py` provides the JSON stdin/stdout bridge for the real
-  decision policy, task-model trainer, and evaluator.
-- `server_runner.py` executes one registered method through that bridge after
-  preflight; it refuses unresolved placeholders and shell-string commands.
+- `server_preflight.py`：不加载模型，检查数据、哈希、切分锁、方法和未填写的模型占位符。
+- `server_adapters.py`：为 Decision LLM 策略、Task Model 训练器和评估器提供 JSON stdin/stdout 桥接。
+- `server_runner.py`：预检通过后运行已登记方法；拒绝未解析占位符和 shell 字符串命令。
+- 数据协议：`data_protocol.json`。
+- 数据文件：`data/helpsteer2-train.jsonl` 和 `data/helpsteer2-validation.jsonl`，需在服务器单独准备。
+- 数据来源：`nvidia/HelpSteer2@990b2711a36180dd19d9c94b8627844866f8982a`；许可证为 `CC-BY-4.0`。
 
-- Freeze manifest: `runs/real-data/lego-fixed-baseline-freeze.json`
-- Reproduction runs: `runs/real-data/reproducibility/`
-- Dataset: `data/helpsteer2-train.jsonl`
-- Final-test data: `data/helpsteer2-validation.jsonl`
-- Protocol: `data_protocol.json`
-- Dataset source revision: `nvidia/HelpSteer2@990b2711a36180dd19d9c94b8627844866f8982a`
-- Dataset license: `CC-BY-4.0`
+冻结的本地脚手架报告 held-in accuracy `0.36393196598`、held-out accuracy `0.36502463054`。这些数字仅用于检查流水线，不是方法效果结论。
 
-The frozen local scaffold reports held-in accuracy `0.36393196598` and held-out
-accuracy `0.36502463054`. These numbers are pipeline checks only.
+## 首次部署顺序
 
-## Server order
+第一阶段先运行冻结的技术一固定对照，再开展更大的 Decision LLM 对照矩阵。正式使用 final-test 前，依次完成：
 
-The first server deployment target is the frozen technology-one fixed control.
-It is deliberately narrower than the later decision-LLM baseline matrix and
-must be run before any final-test unlock:
+1. 准备源码、归一化 JSONL、协议、依赖、冻结清单和基线配置；不要复制凭据或本地虚拟环境。
+2. 填写私有 Qwen 基线配置。`experiment_scope` 应为 `technology_one_baseline`，`final_test_unlocked` 必须为 `false`，Task Model 路径须指向已固定版本的本地模型。
+3. 运行基线预检和导入检查。
+4. 使用 `server_technical_one_baseline` 运行一个 pilot seed。
+5. 检查 `summary.json` 中的训练组哈希、selector 截断审计、held-in/held-out 指标、模型来源信息和预算。
+6. pilot 审查通过后，使用 `run_technology_one_baseline_batch.sh` 运行配对随机种子。
+7. 使用 `run_baseline_matrix.sh` 或 `run_baseline_matrix_batch.sh` 运行可部署的基线/控制/适配矩阵。外部论文方法必须标为任务适配，除非单独完成正式复现。
+8. 使用相同配置方案、随机种子、组预算和评估限制运行最终 natural-support 候选矩阵。
+9. 固定对照与候选矩阵均完成且选择/统计分析冻结后，才能解锁 `final_test`。
 
-1. Copy the source, normalized JSONL files, protocol, requirements, freeze
-   manifest and the baseline profile. Do not copy credentials or local virtual
-   environments.
-2. Fill or review the private Qwen baseline profile. The profile scope must be
-   `technology_one_baseline`, `final_test_unlocked` must remain `false`, and
-   the Task Model path must point to the pinned local Qwen3-4B directory.
-3. Run the baseline preflight and import checks.
-4. Run one fixed-baseline pilot seed with
-   `server_technical_one_baseline`.
-5. Inspect `summary.json`, especially the train-group hash, selector
-   truncation audit, held-in/held-out metrics, model provenance and budget.
-6. Only after the pilot is accepted, run the fixed baseline for the paired
-   seed set using `run_technology_one_baseline_batch.sh`.
-7. Run the full deployable baseline/control/adaptation matrix with
-   `run_baseline_matrix.sh` or `run_baseline_matrix_batch.sh`. External-paper
-   rows must be reported as task adaptations unless a separate official
-   reproduction is completed.
-8. Run the final natural-support candidate matrix with exactly the same profile
-   recipe, seeds, group budget and evaluation limits.
-9. Keep `final_test` locked until both the fixed control and the candidate
-   matrix are complete and the selection/statistical analysis is frozen.
+服务器环境变量、预检、Decision LLM 连通性检查、冒烟测试和正式运行命令见[贡献者实验执行手册](contributor-execution-runbook.md)。技术一代码目录中的 `code/technologies/technology_one/server_handoff.md` 是本文件的兼容入口，不再维护重复内容。
 
-The command for one baseline seed is:
+## 统一验收条件
 
-```bash
-export LEGO_ROOT="$(pwd)"
-export TRAIN_PY="$LEGO_ROOT/.venv/bin/python"
-export PYTHONPATH="$LEGO_ROOT/code:${PYTHONPATH:-}"
-export CUDA_VISIBLE_DEVICES=5
-export LEGO_TASK_MODEL_DEVICE=cuda
-export LEGO_TASK_MODEL_BASE_PATH="$LEGO_ROOT/models/Qwen3-4B"
-export LEGO_TASK_MODEL_MAX_GPU_MEMORY_GIB=32
-export LEGO_EVAL_BATCH_SIZE=16
-export LEGO_DETERMINISTIC=1
-export PYTORCH_ALLOC_CONF=expandable_segments:True
-
-"$TRAIN_PY" -m local_experiments.lego.server_technical_one_baseline \
-  --profile "$LEGO_ROOT/server_profile.baseline.qwen.json" \
-  --root "$LEGO_ROOT" \
-  --output-dir "$LEGO_ROOT/runs/qwen-technology-one-fixed-baseline" \
-  --run-id "qwen-technology-one-fixed-baseline-seed-17-$(date +%Y%m%d-%H%M%S)" \
-  --seed 17 \
-  --max-train-groups 3000 \
-  --max-eval-groups 1000 \
-  --train-group-budget 1000
-```
-
-The later full Action System comparison remains a separate stage:
-
-1. Copy the source, normalized JSONL files, protocol, requirements, and freeze
-   manifest. Do not copy credentials or local virtual environments.
-2. Fill a private copy of `server_profile.example.json`; keep credentials in
-   environment variables or the server secret manager.
-3. Run the preflight profile check before loading models:
-
-   ```powershell
-   python -m local_experiments.lego.server_preflight `
-     --profile server_profile.json `
-     --root . `
-     --report server/preflight.json
-   ```
-
-4. Create a clean environment and install the pinned base/research requirements.
-5. Run import, CUDA, model-loading, and dataset-validation smoke checks.
-6. Configure the real decision model and Task Model separately. The decision
-   model remains Qwen/Qwen2.5-7B-Instruct through vLLM. The formal Task Model
-   adapter is Qwen2.5-3B-Instruct with a pinned LoRA recipe and the
-   `qwen_task_model_command` / `qwen_evaluator_command` pair. TF-IDF remains
-   only as a lightweight mechanism check. Record model paths, revisions,
-   training steps, LoRA configuration, GPU assignment, and checkpoint format
-   in a server config revision.
-   For the private profile, the relevant command and model fields are:
-
-   ```json
-   "task_model": {
-     "model_id": "Qwen3-4B-preference-lora",
-     "revision": "qwen-lora-preference-v1",
-     "initial_checkpoint": "none",
-     "training_config": {
-       "base_model_path": "models/Qwen3-4B",
-       "max_steps": 20,
-       "max_length": 1024,
-       "lora_r": 8,
-       "lora_alpha": 16,
-       "learning_rate": 0.0002,
-       "gradient_accumulation_steps": 1
-     }
-   },
-   "evaluator": {
-     "name": "qwen_lora_preference_logits",
-     "revision": "qwen-lora-preference-v1"
-   },
-   "commands": {
-     "trainer": ["python3", "-m", "local_experiments.lego.qwen_task_model_command"],
-     "evaluator": ["python3", "-m", "local_experiments.lego.qwen_evaluator_command"]
-   }
-   ```
-
-   The path above is an example based on a known server model location; verify
-   it with `test -f <path>/config.json` before running. Use a small
-   `max_steps` only for the first smoke test, then freeze the chosen recipe
-   before formal comparisons.
-7. Run a small fixed Qwen Task Model smoke test first. Verify that the data split,
-   batch order,
-   seed, budget accounting, and audit-log schema match the local protocol.
-8. Run the formal fixed baseline with the Qwen Task Model, then run ReAct + Reflexion,
-   General Self-Harness, and the CurateEvo adaptation
-   under the same model, data, and budget. Report each as an adaptation unless
-   its original protocol is reproduced exactly.
-9. Run independent edit, random joint edit, one-batch/three-batch selection,
-   same-memory/no-process-update, and dependency-aware joint edit under the
-   same model, data, and budget.
-10. Unlock `final_test` only after every candidate-selection run is complete.
-11. Run optional DataEvolver and HarnessEvolve adaptations only after the core
-    matrix is complete and their code/license gates are resolved.
-
-## Server acceptance checks
-
-- `held_in` is the only candidate-selection split.
-- `held_out` is report-only during candidate selection.
-- `final_test` is report-only and explicitly unlocked.
-- Every candidate has a parent harness version and an atomic accept/reject log.
-- Rejected candidates do not change the active harness or checkpoint.
-- Delayed feedback retains its source batch and release batch.
-- All runs preserve dataset, harness, model, code, and checkpoint identifiers.
-- The real server baseline is labeled separately from
-  `deterministic-scaffold` until a real LLM-backed policy is implemented.
-- The Action System is the server-side layer that exposes permitted actions,
-  model/trainer/evaluator adapters, budgets, and audit requirements. It does
-  not imply that every model execution is itself a Harness edit.
+- 仅 `held_in` 可用于候选选择。
+- 候选选择期间，`held_out` 只用于报告回归情况。
+- `final_test` 仅可在明确解锁后用于最终报告。
+- 每个候选都记录父 Harness 版本和原子化接受/拒绝记录。
+- 被拒绝候选不得改变当前 Harness 或检查点。
+- 延迟反馈必须保留来源批次与释放批次。
+- 每次运行保留数据集、Harness、模型、代码和检查点标识。
+- 在实现真实 LLM 策略前，真实服务器基线应与 `deterministic-scaffold` 分开标注。
+- Action System 负责提供许可操作、模型/训练器/评估器适配器、预算和审计要求；不表示每次模型执行本身都是 Harness 修改。

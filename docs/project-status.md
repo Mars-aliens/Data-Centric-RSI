@@ -1,81 +1,38 @@
-# Data-Centric RSI Project Status
+# Data-Centric RSI 项目状态
 
-Updated 2026-10-17. This document summarizes the two independent contributions
-and the umbrella project's integration state. It does not combine their
-datasets, environments, protocols, or source histories.
+更新日期：2026-10-17。本文件概述两个独立研究方向及总项目的整合状态，不合并双方数据集、环境、协议或源码历史。
 
 ## MLE-Aladdin
 
-- **Scope:** data construction for generative ML with partially known
-  requirements; requirement-state updates, calibrated human/model feedback,
-  active feedback selection, dataset adapters, data synthesis/selection, and
-  downstream utility evaluation.
-- **Repository:** independent local Git repository; its GitHub remote has not
-  been configured yet.
-- **Revision:** local commit `6571f7d`; working tree was clean when checked.
-- **Implementation/package work:** Aladdin-only code and Qwen public training
-  support in the Aladdin namespace; README, contribution/server guides, report
-  template, dependencies, audit and packaging scripts are present.
-- **Verification:** `102 passed` in the local test run; repository audit was
-  reported as passing. This verifies package/tests, not a scientific
-  superiority claim.
-- **Publication:** no GitHub remote or push is configured yet.
-- **Evidence boundary:** experiments support individual mechanisms and are not
-  official reproductions of external papers. Final-test labels remain sealed
-  until the registered final evaluation.
+- **范围：** 在需求部分未知时开展生成式机器学习数据构建，包括需求状态更新、校准的人类/模型反馈、主动反馈选择、数据集适配器、数据合成/筛选和下游效用评估。
+- **仓库：** 独立本地 Git 仓库；尚未配置 GitHub 远端。
+- **版本：** 本地提交 `6571f7d`；检查时工作树干净。
+- **实现与打包：** Aladdin 专属代码及 Aladdin 命名空间中的 Qwen 公共训练支持；已准备 README、贡献/服务器指南、报告模板、依赖、审计和打包脚本。
+- **验证：** 本地测试 `102 passed`；仓库审计此前报告通过。这些验证说明软件包和测试状态，不代表科学效果优越。
+- **发布：** 尚未配置 GitHub 远端或推送。
+- **证据边界：** 实验支持其明确陈述的机制，不是对外部论文的正式复现。注册的最终评测完成前，最终测试标签保持封存。
 
 ## MLE-LEGO
 
-- **Scope:** improve the data-processing Harness itself through execution,
-  feedback/reflection, bounded edits, candidate evaluation, acceptance or
-  rollback, and continued execution.
-- **Repository snapshot:** `projects/mle-lego/`; a standalone prepared project
-  tree also exists locally. The two trees were byte-for-byte identical when
-  checked, but the standalone tree has no `.git` history yet.
-- **Implementation:** Technology One includes independent and strict
-  dependency-aware joint edits, proposal validation, candidate evaluation,
-  held-in acceptance, held-out reporting, rollback, checkpoint/resume, server
-  runners, audit scripts, and tests. Technology Two (executable experience
-  reuse) and Technology Three (continuous feedback selection) have documented
-  module boundaries but are not implemented.
-- **Verification:** `56 passed` in the local test run. The final package also
-  verified both the new `technologies.technology_one` import and the legacy
-  `local_experiments.lego` server import.
-- **Completed evidence recorded by the project:** ten-seed component matrix;
-  selector+filter held-out mean delta `+0.0404` with `8/10` paired wins; a
-  60-batch endurance run; and two-batch joint smoke runs. These support only
-  their stated component, execution-stability, and wiring claims.
-- **Not established:** strict dependency-aware-joint formal ten-seed
-  comparison, per-seed joint-proposal coverage, final method superiority, and
-  long-horizon 100/300-batch joint validation.
-- **Publication:** the prepared snapshot is published through the umbrella
-  repository at `Mars-aliens/Data-Centric-RSI` on `main`; the standalone tree
-  has no separate Git history yet.
+- **范围：** 通过执行、反馈/反思、受限修改、候选评估、接受或回滚及持续运行，改进数据处理 Harness 本身。
+- **仓库快照：** `projects/mle-lego/`；本地另有独立准备目录。两份内容此前检查为逐字节相同，但独立目录尚无 `.git` 历史。
+- **实现：** 技术一包含独立修改与严格的依赖感知联合修改、提案校验、候选评估、held-in 接受、held-out 报告、回滚、检查点恢复、服务器运行器、审计脚本和测试。技术二（可执行经验复用）及技术三（连续反馈选择）已有模块边界文档，尚未实现。
+- **验证：** 本地测试 `56 passed`。最终软件包还验证了新 `technologies.technology_one` 导入路径和旧 `local_experiments.lego` 服务器导入路径。
+- **项目记录的已有证据：** 十随机种子组件矩阵；selector+filter 的 held-out 平均差值 `+0.0404`、配对胜出 `8/10`；一次 60 批次耐久运行；两批次联合修改冒烟运行。这些证据仅支持各自限定的组件、运行稳定性和链路验证结论。
+- **尚未确立：** 严格 dependency-aware-joint 十随机种子正式比较、逐随机种子的联合提案覆盖、最终方法优越性，以及 100/300 批次长时联合验证。
+- **发布：** 已随总项目仓库发布至 `Mars-aliens/Data-Centric-RSI` 的 `main` 分支；独立准备目录尚无单独 Git 历史。
 
-## Umbrella Project
+## 总项目
 
-- The umbrella coordinates the two projects but does not merge their code or
-  claim one project's test results for the other.
-- MLE-Aladdin remains the source of truth in its independent Git repository;
-  the umbrella checkout intentionally has no `projects/aladdin/` copy.
-- The umbrella checkout contains an MLE-LEGO snapshot under
-  `projects/mle-lego/`. It currently duplicates the standalone prepared tree;
-  designate one canonical editable source before accepting changes in both.
-- **Publication:** the umbrella `main` branch is published at
-  `Mars-aliens/Data-Centric-RSI`; the initial repository commit is `f662d5c`.
-- No shared code has been extracted. Define and test a common interface only
-  after both projects have a concrete integration requirement.
+- 总项目负责协调两个方向，不合并代码，也不将一方测试结果当作另一方结果。
+- MLE-Aladdin 在其独立 Git 仓库中维护为事实来源；总项目仓库有意不包含 `projects/aladdin/`。
+- 总项目仓库包含 `projects/mle-lego/` 快照。该目录与独立准备目录重复；在两处同时接受变更前，须指定唯一的规范编辑源。
+- **发布：** 总项目 `main` 分支已发布至 `Mars-aliens/Data-Centric-RSI`；仓库初始提交为 `f662d5c`，最近已同步文档更新。
+- 尚未抽取共享代码。只有双方出现具体整合需求后，才定义并测试共同接口。
 
-## Immediate Coordination Tasks
+## 协调待办
 
-1. Configure and verify the Aladdin GitHub remote, then push its existing
-   history. For MLE-LEGO, choose whether the standalone tree or the published
-   umbrella snapshot is canonical; the standalone tree currently has no Git
-   history to push.
-2. Decide whether the umbrella is documentation-only, uses Git submodules, or
-   becomes a monorepo. Do not maintain duplicate editable source trees without
-   an explicit source-of-truth rule.
-3. Continue each project's experiments from its own frozen commit and
-   protocol; link reviewed summaries from this status document.
-4. Open a separate integration issue when concrete cross-project APIs and
-   shared evaluation requirements are known.
+1. 为 Aladdin 配置并验证 GitHub 远端，然后推送现有历史。MLE-LEGO 需决定以独立准备目录还是已发布的总项目快照为规范来源；独立目录目前没有 Git 历史可推送。
+2. 决定总项目是文档协调仓库、使用 Git submodule，还是转为 monorepo。未经明确的事实来源规则，不要长期维护重复且可编辑的源码树。
+3. 各项目基于各自冻结的代码版本和协议继续实验，并将经过审查的汇总结果链接到状态文档。
+4. 具体跨项目 API 和共同评估要求确定后，另建整合 Issue。

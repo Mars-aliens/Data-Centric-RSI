@@ -1,4 +1,4 @@
-# MLE-LEGO Local Experiment
+# MLE-LEGO 本地实验
 
 当前已落地的独立 baseline 是 `fixed-harness-react` 的确定性骨架，基础流程名称为“固定基线流水线”。它包含固定的数据处理、Task Model 训练、统一评测和实验记录，行为保持不变，作为所有 LEGO 方法的控制组。新增的本地机制层在 toy stream 上实现 Harness 版本、失败诊断、文字 Reflexion、独立/随机成组/依赖感知成组修改、held-in/held-out 验证、拒绝与回滚，以及可执行 Experience/Skill 记录。
 
@@ -7,7 +7,7 @@
 ```powershell
 python -m local_experiments.lego.runner
 
-# Run the local Harness strategy comparison.
+# 运行本地 Harness 策略比较。
 python -m local_experiments.lego.experiment_runner
 ```
 
@@ -33,7 +33,7 @@ LEGO 只研究 Data Harness 的自我修改：
 
 “固定基线流水线”是三个技术共同使用的实验起点，不属于其中任何一个技术。
 
-## Baseline registry
+## 对照方法登记
 
 所有需要报告的对照及其来源、当前实现状态和服务器适配状态记录在
 `baseline_matrix.json`；原论文核验、官方实现/许可证状态和复现边界记录在
@@ -102,30 +102,13 @@ deterministic scaffold；它仍不等价于服务器上的真实 ReAct LLM basel
 
 服务器交付清单和服务器端执行顺序记录在 `server_handoff.md`。
 
-## Decision baselines
+## Decision 基线
 
-The real server adapters use one pinned decision model for both policy
-baselines. The recommended starting model is `Qwen/Qwen2.5-7B-Instruct`, with
-temperature `0.0`, a pinned revision, and the same context/output limits in
-both arms. The model is an implementation choice for the decision policy, not
-the Task Model being trained.
+真实服务器适配器为两个策略对照使用同一个固定版本的决策模型。建议起始模型为 `Qwen/Qwen2.5-7B-Instruct`，temperature 设为 `0.0`，固定模型版本，并在两个实验组使用相同的上下文长度和输出限制。该模型用于决策策略，不是接受训练的 Task Model。
 
-`fixed-harness-react` is a ReAct control over the fixed baseline pipeline,
-which includes data processing, Task Model training, evaluation, and run
-logging. The model receives one observation, chooses one permitted action, but cannot
-persistently edit the pipeline. `react-reflexion` uses the same prompts,
-actions, tools, model and budgets, and additionally emits a bounded textual
-reflection after an eligible result. Reflections are stored in an append-only
-JSONL file, become visible from the next policy decision, and never alter code, Prompt,
-Skill, or Memory rules. Reflection calls and tokens are charged to the shared
-decision budget.
+`fixed-harness-react` 是固定基线流水线上的 ReAct 对照，流水线包含数据处理、Task Model 训练、评估和运行记录。模型根据一条观察选择一项许可操作，但不能持久修改流水线。`react-reflexion` 使用相同 prompt、操作、工具、模型和预算，并在符合条件的结果后额外生成受限长度的文字反思。反思追加到 JSONL 文件，从下一次策略决策起可见，且不修改代码、Prompt、Skill 或 Memory 规则。反思调用和 Token 计入共享决策预算。
 
-The policy command receives the `lego-policy-v1` payload and the fully rendered
-system/user prompts. It must emit one JSON object containing `proposal`; the
-Reflexion arm may also emit `reflection`. The adapter records the model
-revision, prompt hashes, eligible reflection IDs, and reflection provenance.
-This is a task adaptation of the published ReAct and Reflexion ideas, not a
-claim that their original benchmark code directly implements HelpSteer2.
+策略命令接收 `lego-policy-v1` payload 和完整渲染后的 system/user prompts。它必须输出包含 `proposal` 的 JSON 对象；Reflexion 实验组也可以输出 `reflection`。适配器记录模型版本、prompt 哈希、符合条件的反思 ID 及反思来源信息。这是对已发表 ReAct 和 Reflexion 思路的任务适配，并不表示其原始基准代码直接实现了 HelpSteer2。
 
 ## 接入点
 

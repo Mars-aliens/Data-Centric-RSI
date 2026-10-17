@@ -1,39 +1,23 @@
-# Project Architecture
+# 项目架构
 
-## Research Scope
+## 研究范围
 
-Data-Centric RSI is the umbrella research effort. Aladdin and MLE-LEGO are
-separate contributions under that effort, not interchangeable names for the
-same implementation. Each contribution owns its code, environment, data
-protocol, experiments, and claims until a specific integration contract is
-agreed.
+Data-Centric RSI 是研究总项目。Aladdin 和 MLE-LEGO 是总项目下相互独立的研究方向，并非同一实现的不同名称。在形成明确的整合契约之前，各自维护代码、环境、数据协议、实验和研究结论。
 
-## Current Repository Boundary
+## 当前仓库边界
 
-`projects/mle-lego/` contains the prepared MLE-LEGO snapshot. MLE-Aladdin is
-maintained in an independent Git repository and is not vendored here. The
-umbrella repository is for cross-project status, protocols, and coordination;
-it must not silently become a second copy of Aladdin source.
+`projects/mle-lego/` 包含准备好的 MLE-LEGO 项目快照。MLE-Aladdin 由独立 Git 仓库维护，不作为 vendored 源码放入此仓库。总项目仓库用于跨项目状态、协议和协作，不应悄然成为 Aladdin 源码的第二份事实来源。
 
-MLE-LEGO internally has a shared runtime, three technology module boundaries,
-and an integration boundary. Technology One is implemented; Technologies Two
-and Three are planned. There is no root-level shared code package yet.
+MLE-LEGO 内部设有共享运行时、三个技术模块边界和一个整合边界。技术一已实现；技术二、技术三尚在规划。当前没有总项目级共享代码包。
 
-## Integration Rules
+## 整合规则
 
-- Keep dependencies project-local by default.
-- Share an interface only after both projects identify a concrete use case,
-  owner, versioning rule, and compatibility tests.
-- Integrate through explicit APIs and data contracts; do not import another
-  project's private modules or experiment outputs.
-- Preserve provenance across project boundaries: code revision, data
-  manifest, model revision, configuration, and artifact identifiers.
-- Keep each contribution independently installable and testable.
+- 默认将依赖留在各自项目中。
+- 只有双方都确认具体用例、负责人、版本规则和兼容性测试后，才共享接口。
+- 通过明确的 API 和数据契约整合；不要导入其他项目的私有模块或实验输出。
+- 跨项目保留来源信息：代码版本、数据清单、模型版本、配置和产物标识。
+- 保持每个子项目可独立安装和测试。
 
-## Repository Growth
+## 仓库后续扩展
 
-If the team later chooses to make this umbrella repository the canonical
-monorepo, integrate Aladdin as a Git subtree or a reviewed source migration,
-not as an untracked copy. Until then, link to its canonical remote once one is
-configured. If common code emerges, extract it to a root `shared/` package only
-through a reviewed change with migration notes and tests for both projects.
+若团队之后决定将总项目仓库作为规范的 monorepo，应通过 Git subtree 或经过审查的源码迁移整合 Aladdin，而非复制一份未跟踪源码。在此之前，待其规范远端确定后链接到事实来源。若形成共同代码，应在经过审查的变更中提取至根目录 `shared/`，并提供迁移说明以及两个项目各自的测试。

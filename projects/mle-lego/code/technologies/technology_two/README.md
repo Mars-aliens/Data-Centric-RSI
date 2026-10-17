@@ -1,16 +1,14 @@
-# Technology Two: Executable Experience Reuse
+# 技术二：可执行经验复用
 
-Status: planned; no method implementation or experimental result is claimed.
+状态：规划中；尚无方法实现或实验结果。
 
-This package is reserved for methods that turn validated execution experience
-into reusable, executable guidance for later Data Harness runs.
+本目录预留给将经过验证的执行经验转化为可复用、可执行指导的方法，供后续 Data Harness 运行使用。
 
-Planned boundaries:
+规划中的模块边界：
 
-- experience schema, provenance, and applicability conditions;
-- retrieval and ranking policy;
-- execution interface with explicit permissions and budgets;
-- evaluation against a no-reuse control under the shared project protocol.
+- 经验数据结构、来源信息和适用条件；
+- 检索与排序策略；
+- 明确权限和预算的执行接口；
+- 按共享项目协议与不复用经验的对照进行评估。
 
-The module must reuse `core_system.mle_core` contracts and must not duplicate
-Technology One's Harness versioning or candidate-evaluation machinery.
+该模块必须复用 `core_system.mle_core` 契约，不得重复实现技术一的 Harness 版本管理或候选评估机制。

@@ -1,10 +1,10 @@
-# Current Status
+# 当前状态
 
-Updated 2026-10-16.
+更新日期：2026-10-16。
 
-## Implementation
+## 实现情况
 
-The local Technology One implementation is complete for the current protocol:
+当前协议要求的技术一本地实现已完成，包含：
 
 - strict `dependency-aware-joint` proposal validation;
 - `independent` versus dependency-closed joint editing;
@@ -12,31 +12,19 @@ The local Technology One implementation is complete for the current protocol:
   and resume;
 - baseline runners, component matrix, batch execution, audits, and tests.
 
-## Completed evidence
+## 已完成的证据
 
-- The ten-seed component matrix completed under the frozen HelpSteer2/Qwen
-  protocol. The selector+filter arm was the strongest observed component
-  combination in that matrix, with held-out mean delta `+0.0404` and 8/10
-  paired wins.
-- A 60-batch endurance run completed with `60/60` batches, no command retries,
-  and no final-test use. This is execution-stability evidence only.
-- The latest joint smoke completed both modes for seed 17 and two batches. The
-  joint mode produced a valid `generator + selector` proposal. Both candidates
-  were rejected because held-in performance regressed.
+- 在冻结的 HelpSteer2/Qwen 协议下完成十随机种子组件矩阵。该矩阵中 selector+filter 组合表现最好，held-out 平均差值为 `+0.0404`，配对胜出 `8/10`。
+- 完成一次 60 批次耐久运行，进度 `60/60`，无命令重试，未使用 final-test。这仅是执行稳定性证据。
+- 最近一次联合修改冒烟测试完成 seed 17 的两个模式、共两批次。联合模式生成了合法的 `generator + selector` 提案；两个候选均因 held-in 指标退步而被拒绝。
 
-## Not yet claimed
+## 尚未声称的结论
 
-- The smoke run does not establish method superiority.
-- The latest strict joint mode still needs the formal ten-seed comparison, with
-  at least one joint proposal audited per seed.
-- Long-horizon 100/300-batch joint validation is separate from the smoke and
-  ten-seed comparison.
-- Final test remains locked until the protocol and statistical analysis are
-  frozen.
+- 冒烟运行不能证明方法优越性。
+- 最新严格联合模式仍需进行十随机种子正式比较，并审计每个种子至少一项联合提案。
+- 100/300 批次长程联合验证是独立于冒烟测试和十随机种子比较的实验。
+- 协议和统计分析冻结前，final-test 继续保持锁定。
 
-## Evidence locations
+## 证据位置
 
-Run outputs are intentionally excluded from this source package. On the
-execution server, preserve them under a versioned `runs/` root and record the
-root, profile hash, code revision, model revision, seeds, and budgets in the
-experiment report.
+本源码包有意排除运行结果。请在执行服务器的带版本 `runs/` 目录下保留结果，并在实验报告中记录目录、profile 哈希、代码版本、模型版本、随机种子和预算。

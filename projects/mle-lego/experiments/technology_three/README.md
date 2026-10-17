@@ -1,4 +1,3 @@
-# Technology Three Experiments
+# 技术三实验
 
-Reserved for continuous-feedback-selection protocols and result indexes. No
-formal experiment is currently registered.
+本目录预留给连续反馈选择协议和结果索引。目前尚未注册正式实验。

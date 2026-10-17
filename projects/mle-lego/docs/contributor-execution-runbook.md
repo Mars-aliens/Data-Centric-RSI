@@ -1,22 +1,16 @@
-# Contributor Execution Runbook
+# 贡献者实验执行手册
 
-This runbook defines how a contributor executes a Technology One experiment
-from the GitHub repository and returns auditable evidence. The contributor
-must not change the protocol, seeds, model revisions, acceptance rule, or data
-splits unless the issue explicitly authorizes a protocol revision.
+本手册说明贡献者如何从 GitHub 仓库执行技术一实验并提交可审计证据。除非 Issue 明确授权修订协议，否则不得更改协议、随机种子、模型版本、接受规则或数据切分。
 
-## Roles
+## 角色
 
-- **Maintainer:** owns the research question, protocol, GitHub issue, and
-  interpretation of results.
-- **Contributor:** prepares the server, runs the assigned commands, preserves
-  logs and outputs, and reports the exact result.
-- **Reviewer:** checks the commit, profile hash, data manifest, audit output,
-  and whether the run is comparable with the protocol.
+- **维护者：** 负责研究问题、协议、GitHub Issue 和结果解释。
+- **贡献者：** 准备服务器、运行指定命令、保存日志与输出，并准确报告结果。
+- **审查者：** 核对 commit、配置哈希、数据清单和审计结果，并确认运行是否符合协议、可进行比较。
 
-## 1. Start From A GitHub Issue
+## 1. 从 GitHub Issue 开始
 
-Every run must have one issue containing:
+每次运行都必须对应一个 Issue，包含：
 
 - experiment name and purpose;
 - Git commit or tag to execute;
@@ -25,12 +19,11 @@ Every run must have one issue containing:
 - required smoke test and formal command;
 - expected result files and acceptance criteria.
 
-The contributor records the issue number in the run report. Do not run formal
-experiments from an uncommitted working tree.
+贡献者须在运行报告中记录 Issue 编号。不得从未提交的工作树开展正式实验。
 
-## 2. Prepare The Server
+## 2. 准备服务器
 
-Clone or update the repository, then record the code revision:
+克隆或更新仓库，然后记录代码版本：
 
 ```bash
 git clone <repository-url>
@@ -39,7 +32,7 @@ git checkout <commit-or-tag>
 git rev-parse HEAD
 ```
 
-Prepare the private environment outside Git:
+在 Git 仓库之外准备私有运行环境：
 
 ```bash
 export LEGO_ROOT="$PWD"
@@ -53,22 +46,18 @@ export LEGO_TASK_MODEL_MAX_GPU_MEMORY_GIB=40
 export PYTORCH_ALLOC_CONF=expandable_segments:True
 ```
 
-Copy the example profile to a private path, fill in local model and command
-paths, and keep the private profile out of Git. Validate the normalized data,
-profile, Decision LLM endpoint, and Task Model before starting a run.
+将示例配置复制到私有路径，填写本地模型和命令路径，并确保私有配置不进入 Git。启动运行前，校验归一化数据、配置、Decision LLM 端点和 Task Model。
 
-The normalized files are external inputs, but the current install checker
-expects them at these ignored paths inside the checkout:
+归一化文件属于外部输入；当前安装检查脚本要求它们位于检出目录中以下已忽略路径：
 
 ```text
 $LEGO_ROOT/data/helpsteer2-train.jsonl
 $LEGO_ROOT/data/helpsteer2-validation.jsonl
 ```
 
-Do not commit these files. Verify their source revision and SHA256 in the
-issue before execution.
+不要提交这些文件。执行前在 Issue 中核验其来源版本和 SHA256。
 
-Run the preflight checks:
+运行预检：
 
 ```bash
 mkdir -p "$LEGO_ROOT/server"
@@ -80,7 +69,7 @@ mkdir -p "$LEGO_ROOT/server"
 bash "$LEGO_ROOT/scripts/check_lego_install.sh"
 ```
 
-The Decision LLM service must be tested independently:
+Decision LLM 服务必须单独测试：
 
 ```bash
 POLICY_API_ROOT="${LEGO_POLICY_API_URL%/chat/completions}"
@@ -97,14 +86,11 @@ curl -fsS --max-time 30 "$POLICY_API_ROOT/models"
 JSON
 ```
 
-Use the repository's `scripts/check_decision_model.sh` only when the server's
-vLLM environment is the configured `vllm-serve` environment; otherwise record
-the equivalent tokenizer, Transformers, vLLM, and CUDA checks in the issue.
+仅当服务器上的 vLLM 环境为已配置的 `vllm-serve` 环境时，才使用仓库的 `scripts/check_decision_model.sh`；否则在 Issue 中记录等效的 tokenizer、Transformers、vLLM 和 CUDA 检查结果。
 
-## 3. Smoke Test
+## 3. 冒烟测试
 
-Run the assigned smoke command first. A smoke run is only a wiring check; it
-does not provide paper evidence. Confirm that:
+先运行指定的冒烟命令。冒烟运行只检查链路，不构成论文实验依据。确认：
 
 - `/v1/models` exposes the pinned Decision LLM model;
 - one policy command returns valid JSON;
@@ -112,11 +98,9 @@ does not provide paper evidence. Confirm that:
 - `final_test_used` is `false`;
 - the run writes `progress.json`, `summary.json`, and an audit trail.
 
-If the smoke test fails, stop and report the command, exit status, relevant log
-tail, GPU assignment, and profile/model revisions. Do not silently edit the
-protocol to make the run pass.
+如果冒烟测试失败，应停止并报告命令、退出状态、相关日志末尾、GPU 分配及配置/模型版本。不得悄悄修改协议以使运行通过。
 
-The smoke command is:
+冒烟命令：
 
 ```bash
 OUTPUT_ROOT="$LEGO_ROOT/runs/<experiment-id>-smoke" \
@@ -125,10 +109,9 @@ MODES="independent dependency-aware-joint" \
 bash "$LEGO_ROOT/scripts/run_technology_one_evolution_comparison_batch.sh"
 ```
 
-## 4. Formal Execution
+## 4. 正式实验
 
-Use the command specified by the issue. For the Technology One comparison,
-the formal modes are `independent` and `dependency-aware-joint`:
+使用 Issue 指定的命令。技术一正式比较的模式为 `independent` 和 `dependency-aware-joint`：
 
 ```bash
 OUTPUT_ROOT="$LEGO_ROOT/runs/<experiment-id>" \
@@ -139,18 +122,13 @@ MODES="independent dependency-aware-joint" \
 bash "$LEGO_ROOT/scripts/run_technology_one_evolution_comparison_batch.sh"
 ```
 
-Run modes in parallel only when the assigned GPUs and memory are isolated.
-Otherwise run them serially. Never reuse an output root for a changed profile,
-code revision, model revision, seed set, or budget.
+只有在 GPU 和显存相互隔离时才并行运行不同模式，否则串行运行。配置、代码版本、模型版本、随机种子集合或预算发生变化时，必须使用新的输出目录。
 
-During execution, monitor `progress.json` and the log. A high rejection rate
-is not by itself a failure; report its breakdown by `held_in_regression`,
-`duplicate_configuration`, invalid proposal, and execution failure.
+运行期间监控 `progress.json` 和日志。拒绝率高本身不代表实验失败；应按 `held_in_regression`、`duplicate_configuration`、提案无效和执行失败分类报告。
 
-## 5. Required Evidence Package
+## 5. 必需的证据包
 
-After completion, return a compressed evidence package outside the source
-repository containing:
+实验完成后，在源码仓库之外提交压缩证据包，包含：
 
 - `summary.json` for every completed run;
 - `progress.json` and `endurance_state.json`;
@@ -160,25 +138,16 @@ repository containing:
 - GPU, seed, batch, training, evaluator, and retry settings;
 - a short `run-report.md` using the template below.
 
-Do not commit raw datasets, model weights, checkpoints, credentials, logs, or
-`runs/` into the public repository. Upload large evidence to the agreed
-artifact store and place only its URL, checksum, and summary in the issue.
+不要将原始数据集、模型权重、检查点、凭据、日志或 `runs/` 提交到公开仓库。大型证据应上传至约定的产物存储，并只在 Issue 中记录链接、校验和及摘要。
 
-## 6. Run Report Template
+## 6. 运行报告模板
 
-Use [docs/run-report-template.md](run-report-template.md) for the complete
-report fields.
+完整报告字段请使用[运行报告模板](run-report-template.md)。
 
-The contributor should report facts only. The maintainer decides whether the
-result supports a research claim.
+贡献者只报告事实，由维护者判断结果是否支持研究结论。
 
-## 7. Completion And Review
+## 7. 完成与审查
 
-The run is complete only when all requested summaries exist, the audit passes,
-`final_test_used` matches the protocol, and the evidence package is linked in
-the issue. The maintainer then updates `docs/current-status.md` and the
-experiment summary in a separate documentation commit.
+只有在所有指定摘要均已生成、审计通过、`final_test_used` 符合协议且 Issue 已链接证据包后，运行才算完成。随后由维护者通过独立文档提交更新 `docs/current-status.md` 和实验摘要。
 
-If a run crashes, preserve the failed output and logs. If resume is supported,
-resume only with the same code, profile, data, model, seed, and output root;
-otherwise start a new output root and explain why in the issue.
+如果运行崩溃，保留失败输出和日志。若支持恢复，只能在代码、配置、数据、模型、随机种子和输出目录完全相同的条件下恢复；否则使用新输出目录，并在 Issue 中说明原因。

@@ -1,38 +1,17 @@
-# Collaboration Workflow
+# 协作流程
 
-The current workflow has two people: the research/code maintainer and the
-server experiment executor. The projects remain independent: Aladdin is in its
-own local Git repository, while MLE-LEGO is prepared as a separate project
-snapshot. Either person may review a change, but code changes and experiment
-execution must be tied to the same recorded Git revision.
+当前由两人协作：一人维护研究与代码，另一人负责服务器实验执行。两个项目保持独立：Aladdin 使用自己的本地 Git 仓库，MLE-LEGO 作为独立项目快照维护。双方均可审查变更；代码修改和实验运行必须关联到同一个已记录的 Git 版本。
 
-## Code Work
+## 代码开发
 
-The maintainer opens an Issue describing the project, research question,
-protocol constraints, expected code change, tests, and completion criteria.
-The implementer works on a branch, runs local tests, and opens a pull request.
-The maintainer reviews and merges the change before formal execution.
+维护者创建 Issue，说明所属项目、研究问题、协议限制、预期代码修改、测试和完成条件。实现者在分支上开发，运行本地测试并创建 Pull Request。维护者审查并合并后，才开展正式实验。
 
-## Experiment Execution
+## 实验执行
 
-The maintainer assigns an experiment Issue with an immutable commit or tag,
-profile revision/hash, data manifest/hash, model revisions, seeds, budgets,
-GPU assignment, output root, smoke-test command, formal command, and audit
-criteria. The executor prepares the server, runs the smoke test, then runs only
-the assigned experiment. Any protocol or code change requires a new reviewed
-revision before continuing.
+维护者创建实验 Issue，指定不可变的 commit 或 tag、配置版本/哈希、数据清单/哈希、模型版本、随机种子、预算、GPU 分配、输出目录、冒烟测试命令、正式运行命令和审计标准。执行者准备服务器，先运行冒烟测试，再执行指定实验。协议或代码有变更时，必须先取得新的审查版本再继续。
 
-The executor attaches or links summaries, progress/state files, logs, preflight
-and audit output, plus a checksum for the evidence archive. Large artifacts
-stay in the approved artifact store, not GitHub. Use the report template owned
-by the project being executed: MLE-LEGO's template is under
-`projects/mle-lego/docs/`; Aladdin's template is in its own repository.
+执行者附上或链接 summary、进度/状态文件、日志、预检和审计输出，并提供证据归档的校验和。大型产物应保存在获批的产物存储中，而非 GitHub。使用所执行项目自己的报告模板：MLE-LEGO 模板位于 `projects/mle-lego/docs/`；Aladdin 模板位于其独立仓库。
 
-## Review and Progress
+## 审查与进度更新
 
-The maintainer checks that the run matches the assigned commit and protocol,
-that the audit passes, and that final-test restrictions were respected. Only
-then should the project status and umbrella README be updated. The executor
-reports observations; research interpretation remains a reviewed project
-decision. Cross-project integration requires a separate issue and an agreed
-versioned interface.
+维护者确认运行使用了指定代码版本和协议、审计通过且遵守最终测试限制后，才更新项目状态和总项目 README。执行者负责报告观察到的事实；研究解释须经审查后确定。跨项目整合应另建 Issue，并先约定带版本的接口。

@@ -1,18 +1,17 @@
 Data-Centric RSI GitHub release package
 Release date: 2026-10-17
-Includes: MLE-LEGO snapshot and cross-project status; Aladdin source remains independent
 File count: 134
-Payload bytes: 635385
+Payload bytes: 606901
 
 Included files:
 .gitattributes	100
 .github\ISSUE_TEMPLATE\mle-lego-experiment.yml	2004
 .github\ISSUE_TEMPLATE\project-task.yml	1199
 .gitignore	345
-CONTRIBUTING.md	1638
-docs\architecture.md	1833
-docs\collaboration.md	1933
-docs\project-status.md	4340
+CONTRIBUTING.md	1495
+docs\architecture.md	1586
+docs\collaboration.md	1643
+docs\project-status.md	3872
 projects\mle-lego\.gitattributes	89
 projects\mle-lego\.github\ISSUE_TEMPLATE\experiment-execution.yml	2313
 projects\mle-lego\.gitignore	338
@@ -30,20 +29,20 @@ projects\mle-lego\code\core_system\mle_core\sklearn_components.py	5517
 projects\mle-lego\code\core_system\mle_core\store.py	3872
 projects\mle-lego\code\core_system\mle_core\text_components.py	3367
 projects\mle-lego\code\integration\__init__.py	63
-projects\mle-lego\code\integration\README.md	464
+projects\mle-lego\code\integration\README.md	369
 projects\mle-lego\code\local_experiments\__init__.py	0
 projects\mle-lego\code\local_experiments\lego\__init__.py	330
 projects\mle-lego\code\technologies\__init__.py	71
 projects\mle-lego\code\technologies\technology_one\__init__.py	63
 projects\mle-lego\code\technologies\technology_one\adaptive.py	12973
 projects\mle-lego\code\technologies\technology_one\baseline_matrix.json	9731
-projects\mle-lego\code\technologies\technology_one\baseline_research.md	11308
+projects\mle-lego\code\technologies\technology_one\baseline_research.md	9898
 projects\mle-lego\code\technologies\technology_one\config.json	535
 projects\mle-lego\code\technologies\technology_one\data_protocol.json	633
 projects\mle-lego\code\technologies\technology_one\data_validation.py	5390
 projects\mle-lego\code\technologies\technology_one\data.py	3462
 projects\mle-lego\code\technologies\technology_one\dataset_research_matrix.json	16425
-projects\mle-lego\code\technologies\technology_one\decision_model_selection.md	2310
+projects\mle-lego\code\technologies\technology_one\decision_model_selection.md	2000
 projects\mle-lego\code\technologies\technology_one\decision_protocol.py	6576
 projects\mle-lego\code\technologies\technology_one\deployment_freeze_manifest.json	340
 projects\mle-lego\code\technologies\technology_one\diagnostics.py	3016
@@ -63,7 +62,7 @@ projects\mle-lego\code\technologies\technology_one\protocol.py	4798
 projects\mle-lego\code\technologies\technology_one\qwen_evaluator_command.py	2521
 projects\mle-lego\code\technologies\technology_one\qwen_preference.py	12239
 projects\mle-lego\code\technologies\technology_one\qwen_task_model_command.py	1260
-projects\mle-lego\code\technologies\technology_one\README.md	7023
+projects\mle-lego\code\technologies\technology_one\README.md	6860
 projects\mle-lego\code\technologies\technology_one\real_data_plan.json	2997
 projects\mle-lego\code\technologies\technology_one\real_data_runner.py	6148
 projects\mle-lego\code\technologies\technology_one\reproducibility.py	6720
@@ -71,7 +70,7 @@ projects\mle-lego\code\technologies\technology_one\runner.py	3135
 projects\mle-lego\code\technologies\technology_one\server_action_contract.json	2719
 projects\mle-lego\code\technologies\technology_one\server_adapters.py	13841
 projects\mle-lego\code\technologies\technology_one\server_baseline_matrix.py	14604
-projects\mle-lego\code\technologies\technology_one\server_handoff.md	8024
+projects\mle-lego\code\technologies\technology_one\server_handoff.md	377
 projects\mle-lego\code\technologies\technology_one\server_preflight.py	7687
 projects\mle-lego\code\technologies\technology_one\server_profile.baseline_matrix.qwen.example.json	2808
 projects\mle-lego\code\technologies\technology_one\server_profile.baseline.qwen.example.json	2485
@@ -92,28 +91,28 @@ projects\mle-lego\code\technologies\technology_one\test_server_technical_one_evo
 projects\mle-lego\code\technologies\technology_one\test_technical_one_protocol.py	4921
 projects\mle-lego\code\technologies\technology_one\validate_data.py	778
 projects\mle-lego\code\technologies\technology_three\__init__.py	77
-projects\mle-lego\code\technologies\technology_three\README.md	686
+projects\mle-lego\code\technologies\technology_three\README.md	587
 projects\mle-lego\code\technologies\technology_two\__init__.py	75
-projects\mle-lego\code\technologies\technology_two\README.md	670
-projects\mle-lego\CONTRIBUTING.md	1969
-projects\mle-lego\data\README.md	433
+projects\mle-lego\code\technologies\technology_two\README.md	581
+projects\mle-lego\CONTRIBUTING.md	1792
+projects\mle-lego\data\README.md	397
 projects\mle-lego\docs\baseline-freeze-protocol.md	3591
-projects\mle-lego\docs\baseline-research.md	11308
-projects\mle-lego\docs\contributor-execution-runbook.md	6609
-projects\mle-lego\docs\current-status.md	1694
-projects\mle-lego\docs\decision-model-selection.md	2310
+projects\mle-lego\docs\baseline-research.md	594
+projects\mle-lego\docs\contributor-execution-runbook.md	6148
+projects\mle-lego\docs\current-status.md	1532
+projects\mle-lego\docs\decision-model-selection.md	2000
 projects\mle-lego\docs\research-scope.md	15895
-projects\mle-lego\docs\run-report-template.md	1006
-projects\mle-lego\docs\server-handoff.md	8024
-projects\mle-lego\docs\technical-one-progress-archive.md	15307
+projects\mle-lego\docs\run-report-template.md	973
+projects\mle-lego\docs\server-handoff.md	3928
+projects\mle-lego\docs\technical-one-progress-archive.md	15238
 projects\mle-lego\docs\technical-one-protocol.md	6680
-projects\mle-lego\experiments\README.md	253
-projects\mle-lego\experiments\technology_one\README.md	223
-projects\mle-lego\experiments\technology_three\README.md	151
-projects\mle-lego\experiments\technology_two\README.md	147
+projects\mle-lego\experiments\README.md	232
+projects\mle-lego\experiments\technology_one\README.md	212
+projects\mle-lego\experiments\technology_three\README.md	113
+projects\mle-lego\experiments\technology_two\README.md	116
 projects\mle-lego\pytest.ini	154
-projects\mle-lego\README.md	7119
-projects\mle-lego\RELEASE_MANIFEST.txt	6373
+projects\mle-lego\README.md	6304
+projects\mle-lego\RELEASE_MANIFEST.txt	6302
 projects\mle-lego\requirements-research.txt	214
 projects\mle-lego\requirements-server.txt	250
 projects\mle-lego\requirements.txt	88
@@ -138,4 +137,4 @@ projects\mle-lego\scripts\run_technology_one_evolution.sh	1807
 projects\mle-lego\scripts\run_technology_one_local.sh	650
 projects\mle-lego\scripts\summarize_technology_one_evolution.py	1910
 pytest.ini	226
-README.md	3130
+README.md	2652

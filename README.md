@@ -1,67 +1,49 @@
 # Data-Centric RSI
 
-Data-Centric RSI is the umbrella research effort on systems that improve data
-construction and model development over repeated execution. It contains two
-independent contributions, MLE-Aladdin and MLE-LEGO, with integration treated
-as a later, explicit engineering step rather than assumed code sharing.
+Data-Centric RSI 是一个研究总项目，关注系统如何在多轮运行中持续改进数据构建与模型开发。项目目前包含两个相互独立的研究方向：MLE-Aladdin 与 MLE-LEGO。跨项目整合将作为后续明确的工程工作推进，不预设代码已经共享。
 
-## Projects
+## 子项目
 
-| Project | Focus | Status in this repository |
+| 项目 | 研究重点 | 当前状态 |
 |---|---|---|
-| MLE-Aladdin | Data construction for generative ML under partially known requirements, including calibrated feedback and active feedback selection | Independent local Git repository; commit `6571f7d`; 102 tests pass; separate GitHub publication remains pending |
-| MLE-LEGO | Self-improving data Harnesses: dependency-aware edits, experience reuse, and continuous feedback | Snapshot published under `projects/mle-lego/`; Technology One implementation; 56 tests pass; Technologies Two and Three remain planned |
+| MLE-Aladdin | 在需求部分未知的情况下构建生成式机器学习数据，包括校准反馈和主动反馈选择 | 独立本地 Git 仓库；提交 `6571f7d`；102 项测试通过；独立 GitHub 发布待完成 |
+| MLE-LEGO | 自我改进的数据 Harness：依赖关系引导的修改、经验复用与连续反馈 | 已发布于 `projects/mle-lego/`；技术一已实现；技术二、三仍在规划 |
 
-These projects have separate source trees, protocols, dependencies, and
-research claims. The Aladdin source is intentionally not copied into this
-umbrella checkout; its independent repository remains the source of truth.
+两个子项目有各自的源码、协议、依赖和研究结论。Aladdin 源码不复制到本仓库，以其独立仓库作为唯一事实来源。
 
-## Repository Structure
+## 仓库结构
 
 ```text
 Data-Centric-RSI/
 ├── projects/
-│   └── mle-lego/                 # MLE-LEGO project snapshot
+│   └── mle-lego/                 # MLE-LEGO 项目快照
 ├── docs/
-│   ├── architecture.md           # Project boundaries and integration rules
-│   └── collaboration.md          # Two-person development and execution flow
-├── .github/ISSUE_TEMPLATE/       # Root-level GitHub task templates
-├── CONTRIBUTING.md               # Cross-project contribution rules
+│   ├── architecture.md           # 项目边界与整合规则
+│   └── collaboration.md          # 两人协作与服务器实验流程
+├── .github/ISSUE_TEMPLATE/       # 总项目 GitHub 任务模板
+├── CONTRIBUTING.md               # 跨项目贡献规范
 └── README.md
 ```
 
-The Aladdin project directory is intentionally absent because its code is
-maintained in an independent Git repository. Do not copy its source here as a
-second source of truth. No root-level shared code package exists until both
-projects have a concrete common interface.
+本仓库不包含 Aladdin 项目目录，因为该项目由独立 Git 仓库维护。不要将其源码复制到此处形成第二份事实来源。在两个项目明确共同接口之前，不建立总项目级共享代码包。
 
-## Start Here
+## 从这里开始
 
-- Read [Project Architecture](docs/architecture.md) before changing project
-  boundaries or shared interfaces.
-- Read [Collaboration Workflow](docs/collaboration.md) before assigning work
-  between implementation and server execution.
-- For MLE-LEGO setup, experiments, and current evidence, use
-  [projects/mle-lego/README.md](projects/mle-lego/README.md).
-- For the cross-project progress and pending publication/integration steps,
-  see [Project Status](docs/project-status.md).
-- For reproducible MLE-LEGO server runs, follow
-  [projects/mle-lego/docs/contributor-execution-runbook.md](projects/mle-lego/docs/contributor-execution-runbook.md).
+- 修改项目边界或共享接口前，先阅读[项目架构](docs/architecture.md)。
+- 分配实现和服务器运行工作前，先阅读[协作流程](docs/collaboration.md)。
+- MLE-LEGO 的安装、实验和现有证据见[项目说明](projects/mle-lego/README.md)。
+- 跨项目进度及待办事项见[项目状态](docs/project-status.md)。
+- 可复现的 MLE-LEGO 服务器实验请遵循[贡献者执行手册](projects/mle-lego/docs/contributor-execution-runbook.md)。
 
-## Run MLE-LEGO Tests
+## 运行 MLE-LEGO 测试
 
 ```bash
 cd projects/mle-lego
 python -m pytest -q
 ```
 
-Datasets, model weights, private profiles, checkpoints, and run outputs remain
-outside Git. See the MLE-LEGO data and server handoff documentation for setup.
+数据集、模型权重、私有配置、检查点和运行结果均不纳入 Git。准备方式见 MLE-LEGO 的数据说明和服务器交接文档。
 
-## Project Status
+## 项目状态
 
-This umbrella checkout includes the MLE-LEGO snapshot. Aladdin is developed in
-its separate local repository and is not copied here. The umbrella repository
-is published at `Mars-aliens/Data-Centric-RSI`; current implementation and
-experiment boundaries are tracked in
-`docs/project-status.md`.
+本仓库包含 MLE-LEGO 项目快照。Aladdin 在独立仓库开发，不复制到此处。总项目仓库已发布至 `Mars-aliens/Data-Centric-RSI`；当前实现范围和实验结论边界见[项目状态文档](docs/project-status.md)。

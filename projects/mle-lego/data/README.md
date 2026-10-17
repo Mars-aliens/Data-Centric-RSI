@@ -1,10 +1,5 @@
-# External data
+# 外部数据
 
-The repository does not include HelpSteer2 or any private dataset. Prepare the
-normalized JSONL files on the execution server according to
-`code/technologies/technology_one/data_protocol.json` and the instructions in
-`docs/server-handoff.md`.
+本仓库不包含 HelpSteer2 或任何私有数据集。请在执行服务器上按照 `code/technologies/technology_one/data_protocol.json` 和 `docs/server-handoff.md` 的说明准备归一化 JSONL 文件。
 
-Keep source data, split manifests, and generated run outputs outside the Git
-repository unless the project explicitly approves a small, redistributable
-fixture for a test.
+除非项目明确批准将小型、可再分发的测试样例纳入版本控制，否则原始数据、切分清单和运行结果都应保存在 Git 仓库之外。

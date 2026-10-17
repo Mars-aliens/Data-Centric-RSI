@@ -1,5 +1,3 @@
-# Technology One Experiments
+# 技术一实验
 
-Store versioned protocol manifests, audit summaries, and links/checksums for
-external evidence packages here. Do not commit raw runs, logs, datasets,
-model weights, or private server profiles.
+在此保存带版本的协议清单、审计摘要，以及外部证据包的链接和校验值。不要提交原始运行结果、日志、数据集、模型权重或私有服务器配置。

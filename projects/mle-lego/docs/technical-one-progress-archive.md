@@ -340,10 +340,10 @@ SHA256: 31846F7CB445CAF72DB74EA975FFC526E5C449D30ACCB6474E87DD4C34F95DF1
 
 当前可以安全写成：
 
-> We first completed a ten-seed natural-support component matrix under a frozen HelpSteer2/Qwen protocol. The matrix was fully audited, and matched fixed baselines were semantically aligned across seeds. We then verified the real multi-batch decision-LLM evolution path: the model proposed a bounded Harness edit, the candidate branch was trained and evaluated, and the system rejected the candidate and rolled back when held-in performance decreased. The formal ten-seed evolution study is still running; final-test evaluation remains locked.
+> 我们首先在冻结的 HelpSteer2/Qwen 协议下完成了十随机种子的 natural-support 组件矩阵。矩阵已完成审计，各随机种子的匹配固定基线也通过语义对齐检查。随后，我们验证了真实的多批次 Decision LLM 演化链路：模型提出受限的 Harness 修改，候选分支经过训练和评估；当 held-in 表现下降时，系统拒绝候选并执行回滚。十随机种子正式演化研究仍在进行，final-test 评估继续锁定。
 
 当前不能写成：
 
-> LEGO has already demonstrated statistically significant long-horizon self-improvement over all baselines.
+> LEGO 已经证明，在长程运行中显著优于所有基线并实现自我改进。
 
 因为正式多 seed evolution 和匹配的多批次 controls 尚未完成。

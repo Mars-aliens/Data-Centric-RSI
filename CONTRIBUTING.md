@@ -1,37 +1,27 @@
-# Contributing
+# 贡献指南
 
-This repository coordinates independently owned research contributions.
-Keep project-specific code, tests, protocols, and dependencies inside the
-owning project directory. Promote code to a shared top-level package only
-when at least two projects use the same stable interface and both maintainers
-agree to the change.
+本仓库用于协调相互独立的研究贡献。项目专属代码、测试、协议和依赖应留在所属项目目录中。只有至少两个项目确实使用同一稳定接口，且双方维护者同意后，才将代码提升为总项目级共享包。
 
-## Workflow
+## 工作流程
 
-1. Open a GitHub Issue using the closest project/task template.
-2. State the project owner, implementer, executor, expected artifacts, and
-   acceptance criteria.
-3. Work on a focused branch and keep the change within its project boundary.
-4. Run that project's tests and protocol checks.
-5. Open a pull request linking the issue; update project status documents only
-   with reviewed evidence.
+1. 使用最符合任务的项目或工作模板创建 GitHub Issue。
+2. 写明项目负责人、实现者、执行者、预期产物和验收标准。
+3. 在聚焦的分支上工作，并遵守项目目录边界。
+4. 运行所属项目的测试和协议检查。
+5. 创建关联 Issue 的 Pull Request；项目状态文档只记录经过审查的证据。
 
-For a MLE-LEGO experiment, follow its contributor runbook. The code revision,
-profile hash, data manifest, model revisions, seeds, budgets, and evidence
-location must be recorded. Execution output alone is not a research conclusion.
+MLE-LEGO 实验须遵循其贡献者执行手册，并记录代码版本、配置哈希、数据清单、模型版本、随机种子、预算和证据位置。仅有运行输出不构成研究结论。
 
-## Research Integrity
+## 研究规范
 
-- Do not change data splits, seeds, model revisions, budgets, acceptance rules,
-  or metrics without recording a protocol revision.
-- Keep raw datasets, model weights, credentials, private profiles, checkpoints,
-  and bulky run outputs out of Git.
-- Do not report a planned project or experiment as implemented or completed.
-- Preserve failed runs and explain resumptions; do not overwrite evidence.
+- 修改数据切分、随机种子、模型版本、预算、接受规则或指标时，必须记录协议版本变更。
+- 不要将原始数据集、模型权重、凭据、私有配置、检查点和大型运行输出提交到 Git。
+- 不要将计划中的项目或实验描述为已实现或已完成。
+- 保留失败运行并说明恢复过程；不要覆盖实验依据。
 
-## Commits
+## 提交信息
 
-Use concise imperative subjects with an optional project scope, for example:
+使用简洁的祈使式标题，可添加项目范围前缀，例如：
 
 ```text
 docs: define cross-project integration boundary

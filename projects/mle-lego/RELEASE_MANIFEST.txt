@@ -1,19 +1,12 @@
-MLE-LEGO GitHub release package
+MLE-LEGO project release package
 Release date: 2026-10-17
-Project scope: Data-Centric RSI, modular technology contributions
 File count: 123
-Payload bytes: 612680
+Payload bytes: 585477
 
 Included files:
 .gitattributes	89
-.gitignore	338
-CONTRIBUTING.md	1969
-pytest.ini	154
-README.md	7141
-requirements-research.txt	214
-requirements-server.txt	250
-requirements.txt	88
 .github\ISSUE_TEMPLATE\experiment-execution.yml	2313
+.gitignore	338
 code\core_system\__init__.py	43
 code\core_system\mle_core\__init__.py	941
 code\core_system\mle_core\budget.py	1355
@@ -28,20 +21,20 @@ code\core_system\mle_core\sklearn_components.py	5517
 code\core_system\mle_core\store.py	3872
 code\core_system\mle_core\text_components.py	3367
 code\integration\__init__.py	63
-code\integration\README.md	464
+code\integration\README.md	369
 code\local_experiments\__init__.py	0
 code\local_experiments\lego\__init__.py	330
 code\technologies\__init__.py	71
 code\technologies\technology_one\__init__.py	63
 code\technologies\technology_one\adaptive.py	12973
 code\technologies\technology_one\baseline_matrix.json	9731
-code\technologies\technology_one\baseline_research.md	11308
+code\technologies\technology_one\baseline_research.md	9898
 code\technologies\technology_one\config.json	535
 code\technologies\technology_one\data_protocol.json	633
 code\technologies\technology_one\data_validation.py	5390
 code\technologies\technology_one\data.py	3462
 code\technologies\technology_one\dataset_research_matrix.json	16425
-code\technologies\technology_one\decision_model_selection.md	2310
+code\technologies\technology_one\decision_model_selection.md	2000
 code\technologies\technology_one\decision_protocol.py	6576
 code\technologies\technology_one\deployment_freeze_manifest.json	340
 code\technologies\technology_one\diagnostics.py	3016
@@ -61,7 +54,7 @@ code\technologies\technology_one\protocol.py	4798
 code\technologies\technology_one\qwen_evaluator_command.py	2521
 code\technologies\technology_one\qwen_preference.py	12239
 code\technologies\technology_one\qwen_task_model_command.py	1260
-code\technologies\technology_one\README.md	7023
+code\technologies\technology_one\README.md	6860
 code\technologies\technology_one\real_data_plan.json	2997
 code\technologies\technology_one\real_data_runner.py	6148
 code\technologies\technology_one\reproducibility.py	6720
@@ -69,7 +62,7 @@ code\technologies\technology_one\runner.py	3135
 code\technologies\technology_one\server_action_contract.json	2719
 code\technologies\technology_one\server_adapters.py	13841
 code\technologies\technology_one\server_baseline_matrix.py	14604
-code\technologies\technology_one\server_handoff.md	8221
+code\technologies\technology_one\server_handoff.md	377
 code\technologies\technology_one\server_preflight.py	7687
 code\technologies\technology_one\server_profile.baseline_matrix.qwen.example.json	2808
 code\technologies\technology_one\server_profile.baseline.qwen.example.json	2485
@@ -90,24 +83,30 @@ code\technologies\technology_one\test_server_technical_one_evolution.py	15516
 code\technologies\technology_one\test_technical_one_protocol.py	4921
 code\technologies\technology_one\validate_data.py	778
 code\technologies\technology_three\__init__.py	77
-code\technologies\technology_three\README.md	686
+code\technologies\technology_three\README.md	587
 code\technologies\technology_two\__init__.py	75
-code\technologies\technology_two\README.md	670
-data\README.md	433
+code\technologies\technology_two\README.md	581
+CONTRIBUTING.md	1792
+data\README.md	397
 docs\baseline-freeze-protocol.md	3591
-docs\baseline-research.md	11308
-docs\contributor-execution-runbook.md	6609
-docs\current-status.md	1694
-docs\decision-model-selection.md	2310
+docs\baseline-research.md	594
+docs\contributor-execution-runbook.md	6148
+docs\current-status.md	1532
+docs\decision-model-selection.md	2000
 docs\research-scope.md	15895
-docs\run-report-template.md	1006
-docs\server-handoff.md	8221
-docs\technical-one-progress-archive.md	15307
+docs\run-report-template.md	973
+docs\server-handoff.md	3928
+docs\technical-one-progress-archive.md	15238
 docs\technical-one-protocol.md	6680
-experiments\README.md	253
-experiments\technology_one\README.md	223
-experiments\technology_three\README.md	151
-experiments\technology_two\README.md	147
+experiments\README.md	232
+experiments\technology_one\README.md	212
+experiments\technology_three\README.md	113
+experiments\technology_two\README.md	116
+pytest.ini	154
+README.md	6304
+requirements-research.txt	214
+requirements-server.txt	250
+requirements.txt	88
 scripts\audit_technical_one_matrix.py	5358
 scripts\audit_technology_one_complete.py	1536
 scripts\audit_technology_one_evolution_endurance.py	2783

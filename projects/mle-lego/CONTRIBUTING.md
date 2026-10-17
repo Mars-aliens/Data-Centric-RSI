@@ -1,53 +1,43 @@
-# Contributing
+# 贡献指南
 
-## Scope
+## 范围
 
-This repository is the Technology One implementation of the larger
-Data-Centric RSI project. Keep changes focused on the Harness, its evaluation
-protocol, reproducibility, and the associated documentation.
+本仓库承载 Data-Centric RSI 总项目中的技术一实现。变更应聚焦于 Harness、评估协议、可复现性及相关文档。
 
-## Before opening a change
+## 提交变更前
 
-1. Create a branch named `feature/<short-name>`, `fix/<short-name>`, or
-   `experiment/<short-name>`.
-2. Run `python -m pytest -q` from the repository root.
-3. Run shell syntax checks for changed scripts with `bash -n <script>`.
-4. Update the relevant protocol or status document when behavior or evidence
-   changes.
+1. 创建名为 `feature/<short-name>`、`fix/<short-name>` 或 `experiment/<short-name>` 的分支。
+2. 在仓库根目录运行 `python -m pytest -q`。
+3. 对修改过的脚本运行 shell 语法检查：`bash -n <script>`。
+4. 行为或证据发生变化时，更新对应协议或状态文档。
 
-## Experiment changes
+## 实验变更
 
-Keep the following fixed unless the change is explicitly a protocol revision:
+除非明确提交协议修订，否则以下项目必须保持不变：
 
-- dataset split and source revision;
-- seed set and group budgets;
-- Decision LLM model and revision;
-- held-in acceptance rule;
-- held-out report-only rule;
-- final-test lock;
-- candidate training and evaluator budgets.
+- 数据切分和来源版本；
+- 随机种子集合和组预算；
+- Decision LLM 模型及版本；
+- held-in 接受规则；
+- held-out 仅报告规则；
+- final-test 锁定状态；
+- 候选训练和评估器预算。
 
-If one of these changes, record the reason, update the protocol, and use a new
-output root. Never overwrite an old formal run to make it appear comparable.
+如需变更其中任一项，记录原因、更新协议并使用新的输出目录。不得覆盖旧正式运行结果来制造可比的假象。
 
-## Contributor execution
+## 贡献者执行
 
-Server execution must be assigned through a GitHub issue and performed from a
-recorded commit. Contributors should follow
-`docs/contributor-execution-runbook.md`, return the required evidence package,
-and report facts without interpreting method superiority. The maintainer owns
-the protocol, result interpretation, and updates to `docs/current-status.md`.
+服务器实验必须通过 GitHub Issue 分配，并基于已记录的 commit 执行。贡献者应遵循
+`docs/contributor-execution-runbook.md`，提交所需证据包，并只报告事实，不解释方法优越性。维护者负责协议、结果解释及 `docs/current-status.md` 的更新。
 
-## Files that must stay out of Git
+## 不得提交到 Git 的文件
 
-Do not commit credentials, private server profiles, datasets, model weights,
-checkpoints, `runs/`, `logs/`, `tmp/`, `.venv/`, generated zip files, or local
-editor/LibreOffice profiles. The repository `.gitignore` covers the common
-cases, but inspect `git status` before committing.
+不要提交凭据、私有服务器配置、数据集、模型权重、
+检查点、`runs/`、`logs/`、`tmp/`、`.venv/`、生成的 zip 文件或本地编辑器/LibreOffice 配置。仓库 `.gitignore` 覆盖常见情况，但提交前仍须检查 `git status`。
 
-## Commit guidance
+## 提交信息规范
 
-Use short imperative commit subjects, for example:
+提交标题使用简短的祈使式表达，例如：
 
 ```text
 fix: reject incomplete dependency closures

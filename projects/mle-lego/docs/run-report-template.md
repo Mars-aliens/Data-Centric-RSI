@@ -1,8 +1,6 @@
-# Experiment Run Report
+# 实验运行报告模板
 
-Copy this template into the assigned GitHub Issue after the run. Report
-observed facts and links; do not interpret method superiority in the execution
-report.
+运行结束后，将此模板复制到对应的 GitHub Issue 中。只报告观察到的事实并提供链接；不要在执行报告中解释某方法是否更优。
 
 ```text
 issue:
@@ -44,7 +42,4 @@ evidence_archive:
 notes:
 ```
 
-Required attachments or links are the run summaries, progress/state files,
-logs, preflight report, audit output, and the checksum of the evidence
-archive. Keep datasets, model weights, checkpoints, credentials, and private
-profiles outside the public repository.
+必须附上或链接运行摘要、进度/状态文件、日志、预检报告、审计结果，以及证据归档的校验和。数据集、模型权重、检查点、凭据和私有配置不得放入公开仓库。

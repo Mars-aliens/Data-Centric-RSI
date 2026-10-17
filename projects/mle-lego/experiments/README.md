@@ -1,6 +1,3 @@
-# Experiments
+# 实验
 
-Each technology owns its protocol revisions, run manifests, and result
-indexes under a stable directory. Raw datasets, model checkpoints, private
-profiles, logs, and bulky run outputs remain outside Git or in the approved
-artifact store.
+每项技术在固定目录下维护自己的协议版本、运行清单和结果索引。原始数据集、模型检查点、私有配置、日志和大型运行结果应保存在 Git 之外或获批的产物存储中。

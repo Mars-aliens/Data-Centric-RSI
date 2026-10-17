@@ -1,17 +1,12 @@
-# Decision Model Selection
+# Decision Model 选择
 
-## Locked recommendation for the first real run
+## 首次真实运行的冻结建议
 
-Use `Qwen/Qwen2.5-7B-Instruct` as the **decision LLM** for both
-`fixed-harness-react` and `react-reflexion`.
+`fixed-harness-react` 和 `react-reflexion` 均使用 `Qwen/Qwen2.5-7B-Instruct` 作为 **Decision LLM**。
 
-This is a practical choice for the first server experiment because it is an
-open instruct model with a stable Transformers/vLLM path, supports the English
-HelpSteer2 records, and is large enough to select structured data operations
-without making the controller more expensive than the task-model experiment.
-It is not being claimed as an official ReAct or Reflexion model.
+这是首次服务器实验的务实选择：该开放指令模型有稳定的 Transformers/vLLM 使用路径，支持英文 HelpSteer2 数据，能力足以选择结构化数据操作，同时控制器成本不会高于 Task Model 实验。本项目不声称它是 ReAct 或 Reflexion 的官方模型。
 
-Run it behind a pinned vLLM OpenAI-compatible endpoint. Use:
+通过版本固定的 vLLM OpenAI 兼容端点提供服务，并使用以下设置：
 
 ```text
 temperature = 0.0
@@ -20,31 +15,16 @@ max_output_tokens = 512
 structured JSON output = required
 ```
 
-Pin the exact Hugging Face revision or local model-directory checksum before
-the first result. The same revision, prompt hash, context limit, tool surface,
-and total LLM call/token budget must be used by both baselines.
+首次实验前固定 Hugging Face revision 或本地模型目录校验和。两个对照必须使用相同的模型版本、prompt 哈希、上下文长度、工具接口及 LLM 调用/Token 总预算。
 
-The repository includes `policy_command.py`, a small stdin/stdout client for
-that endpoint. Configure `LEGO_POLICY_API_URL` and keep credentials in the
-server secret manager. The command returns one proposal and reports its call
-and token cost to the LEGO budget ledger.
+仓库中的 `policy_command.py` 是该端点的 stdin/stdout 客户端。配置 `LEGO_POLICY_API_URL`，并将凭据保存在服务器密钥管理器中。命令返回一条提案，并将调用次数和 Token 成本记入 LEGO 预算账本。
 
-## Baseline semantics
+## 对照方法定义
 
-`fixed-harness-react` uses the fixed baseline pipeline, including data
-processing, Task Model training, evaluation, and run logging. It lets the controller choose one current-batch operation. It never
-persists a code, Prompt, Skill, or Memory-rule change.
+`fixed-harness-react` 使用固定基线流水线，包括数据处理、Task Model 训练、评估和运行日志。控制器可以为当前批次选择一项操作，但不会持久修改代码、Prompt、Skill 或 Memory 规则。
 
-`react-reflexion` uses exactly the same setup and additionally stores the
-controller's bounded textual reflection in `reflections.jsonl`. A record is
-visible starting with the next policy decision, carries its source batch and model/prompt
-provenance, and is retrieved deterministically with a maximum of four records.
-It remains text memory; it cannot directly edit the Harness.
+`react-reflexion` 使用完全相同的设置，并将控制器受限的文字反思额外保存到 `reflections.jsonl`。记录从下一次策略决策起可见，保留来源批次以及模型/prompt 来源信息，并以确定性方式检索，最多四条。它仍是文本记忆，不能直接修改 Harness。
 
-The Task Model is a separate experimental choice. It must be selected and
-pinned in the training profile independently of this decision-model choice.
+Task Model 是独立的实验选择，必须在训练配置中另行选择并固定版本。
 
-The fixed baseline pipeline is the shared starting point. The three LEGO
-technology names are: dependency-guided joint editing, executable experience
-reuse, and continuous-run feedback selection. These names describe the
-research mechanisms; they are not pipeline version labels.
+固定基线流水线是共同起点。LEGO 三项技术分别为依赖关系引导的联合修改、可执行经验复用和连续运行反馈选择。这些名称指研究机制，不是流水线版本标签。

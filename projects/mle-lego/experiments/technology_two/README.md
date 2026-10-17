@@ -1,4 +1,3 @@
-# Technology Two Experiments
+# 技术二实验
 
-Reserved for executable-experience-reuse protocols and result indexes. No
-formal experiment is currently registered.
+本目录预留给可执行经验复用协议和结果索引。目前尚未注册正式实验。
