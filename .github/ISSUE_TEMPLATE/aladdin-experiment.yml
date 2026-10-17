@@ -1,0 +1,65 @@
+name: Aladdin 实验执行
+description: 分配一次可复现的 MLE-Aladdin 服务器实验
+title: "实验：Aladdin "
+labels:
+  - experiment
+  - aladdin
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先阅读 `projects/aladdin/docs/contributor-execution-runbook.md`。贡献者必须执行指定 commit，保持 final-test 封存，并返回可审计证据。
+  - type: input
+    id: commit
+    attributes:
+      label: Commit 或 tag
+      description: 必须执行的总仓库精确版本。
+    validations:
+      required: true
+  - type: input
+    id: objective
+    attributes:
+      label: 实验目的
+      description: 写明反馈、数据构建、Qwen 或集成流水线实验目标。
+    validations:
+      required: true
+  - type: input
+    id: inputs
+    attributes:
+      label: 数据、模型和接口
+      description: 记录数据路径及 SHA256、模型 revision、endpoint 和 GPU。
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: 精确执行命令
+      description: 填写贡献者应复制执行的命令；私有路径使用占位符。
+      render: bash
+    validations:
+      required: true
+  - type: textarea
+    id: protocol
+    attributes:
+      label: 预算和协议
+      description: 记录 seed、反馈预算、训练预算、比较方法和 final-test 规则。
+    validations:
+      required: true
+  - type: checkboxes
+    id: gates
+    attributes:
+      label: 执行门槛
+      options:
+        - label: 已完成安装检查和 smoke/preflight。
+          required: true
+        - label: 数据、模型、凭据、私有 profile 和运行结果不提交 Git。
+          required: true
+        - label: final-test 标签在预注册最终评测前保持封存。
+          required: true
+  - type: textarea
+    id: completion
+    attributes:
+      label: 完成条件和证据位置
+      description: 列出 summary、分析器、leakage audit、日志和证据归档位置。
+    validations:
+      required: true

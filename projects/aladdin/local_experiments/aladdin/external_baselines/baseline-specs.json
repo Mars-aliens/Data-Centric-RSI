@@ -1,0 +1,48 @@
+{
+  "baselines": [
+    {
+      "key": "ditto",
+      "name": "DITTO",
+      "paper_url": "https://arxiv.org/abs/2406.00888",
+      "official_code_url": "https://github.com/SALT-NLP/demonstrated-feedback",
+      "role": "supplemental-demonstration-adaptation",
+      "primary_comparisons": ["zero-shot", "few-shot", "sft", "spin"],
+      "ablations": ["sample-only-at-start", "without-replay", "without-interpolicy", "updated-reference-policy"],
+      "required_inputs": ["demonstrations", "feedback", "task_model", "preference_optimizer"],
+      "local_status": "protocol-only-server-required"
+    },
+    {
+      "key": "dataenvgym",
+      "name": "DataEnvGym",
+      "paper_url": "https://arxiv.org/abs/2410.06215",
+      "official_code_url": "https://github.com/codezakh/dataenvgym",
+      "role": "supplemental-student-feedback-data-generation",
+      "primary_comparisons": ["open-ended", "skill-list", "skill-tree", "with-state", "no-state"],
+      "ablations": ["oracle-skills-vs-inferred-skills", "gpt-4o-vs-gpt-4o-mini"],
+      "required_inputs": ["teacher_model", "student_model", "feedback", "data_generation_engine"],
+      "local_status": "protocol-only-server-required"
+    },
+    {
+      "key": "dataevolver",
+      "name": "DataEvolver",
+      "paper_url": "https://arxiv.org/abs/2606.07001",
+      "official_code_url": "https://github.com/ruc-datalab/DataEvolver",
+      "role": "supplemental-seed-guided-data-preparation",
+      "primary_comparisons": ["vanilla-sft", "dataflow-sft", "dataevolver-sft"],
+      "ablations": ["without-operator-level-evolution", "without-pipeline-level-evolution"],
+      "required_inputs": ["raw_data", "seed_examples", "task_model", "data_preparation_pipeline"],
+      "local_status": "protocol-only-server-required"
+    },
+    {
+      "key": "gepa",
+      "name": "GEPA",
+      "paper_url": "https://arxiv.org/abs/2507.19457",
+      "official_code_url": null,
+      "role": "supplemental-prompt-level-control",
+      "primary_comparisons": ["base-program", "miprov2", "grpo"],
+      "ablations": ["select-best-candidate", "pareto-based-selection", "merge"],
+      "required_inputs": ["compound_ai_program", "feedback", "prompt_optimizer"],
+      "local_status": "protocol-only-supplemental-server-required"
+    }
+  ]
+}

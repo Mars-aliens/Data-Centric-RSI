@@ -1,0 +1,6 @@
+{
+  "minimum_audits": 20,
+  "minimum_agreement_lower_bound": 0.8,
+  "confidence_z": 1.96,
+  "audits": []
+}

@@ -1,0 +1,64 @@
+{
+  "configs": [
+    {
+      "baseline_key": "ditto",
+      "task_id": "server-task-to-be-declared",
+      "data_version": "server-data-version-to-be-pinned",
+      "dataset_manifest": "server/manifests/ditto.json",
+      "initial_checkpoint": "server/checkpoints/initial-task-model-to-be-pinned",
+      "task_model": "server-task-model-to-be-declared",
+      "evaluator": "server-evaluator-to-be-declared",
+      "seeds": [17, 18, 19],
+      "splits": ["seed", "development", "held_out", "final_test"],
+      "budget": {"llm_calls": 0, "llm_tokens": 0, "training_steps": 0, "evaluator_calls": 0, "feedback_requests": 1, "wall_clock_seconds": 0},
+      "official_commit": null,
+      "server_profile": "unset",
+      "final_test_unlocked": false
+    },
+    {
+      "baseline_key": "dataenvgym",
+      "task_id": "server-task-to-be-declared",
+      "data_version": "server-data-version-to-be-pinned",
+      "dataset_manifest": "server/manifests/dataenvgym.json",
+      "initial_checkpoint": "server/checkpoints/initial-task-model-to-be-pinned",
+      "task_model": "server-student-model-to-be-declared",
+      "evaluator": "server-evaluator-to-be-declared",
+      "seeds": [17, 18, 19],
+      "splits": ["seed", "development", "held_out", "final_test"],
+      "budget": {"llm_calls": 0, "llm_tokens": 0, "training_steps": 0, "evaluator_calls": 0, "feedback_requests": 1, "wall_clock_seconds": 0},
+      "official_commit": null,
+      "server_profile": "unset",
+      "final_test_unlocked": false
+    },
+    {
+      "baseline_key": "dataevolver",
+      "task_id": "server-task-to-be-declared",
+      "data_version": "server-data-version-to-be-pinned",
+      "dataset_manifest": "server/manifests/dataevolver.json",
+      "initial_checkpoint": "server/checkpoints/initial-task-model-to-be-pinned",
+      "task_model": "server-task-model-to-be-declared",
+      "evaluator": "server-evaluator-to-be-declared",
+      "seeds": [17, 18, 19],
+      "splits": ["seed", "development", "held_out", "final_test"],
+      "budget": {"llm_calls": 0, "llm_tokens": 0, "training_steps": 0, "evaluator_calls": 0, "feedback_requests": 0, "wall_clock_seconds": 0},
+      "official_commit": null,
+      "server_profile": "unset",
+      "final_test_unlocked": false
+    },
+    {
+      "baseline_key": "gepa",
+      "task_id": "server-task-to-be-declared",
+      "data_version": "server-data-version-to-be-pinned",
+      "dataset_manifest": "server/manifests/gepa.json",
+      "initial_checkpoint": "server/checkpoints/initial-task-model-to-be-pinned",
+      "task_model": "server-compound-ai-model-to-be-declared",
+      "evaluator": "server-evaluator-to-be-declared",
+      "seeds": [17, 18, 19],
+      "splits": ["seed", "development", "held_out", "final_test"],
+      "budget": {"llm_calls": 0, "llm_tokens": 0, "training_steps": 0, "evaluator_calls": 0, "feedback_requests": 1, "wall_clock_seconds": 0},
+      "official_commit": null,
+      "server_profile": "unset",
+      "final_test_unlocked": false
+    }
+  ]
+}
