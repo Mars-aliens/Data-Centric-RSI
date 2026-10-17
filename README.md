@@ -9,8 +9,8 @@ as a later, explicit engineering step rather than assumed code sharing.
 
 | Project | Focus | Status in this repository |
 |---|---|---|
-| MLE-Aladdin | Data construction for generative ML under partially known requirements, including calibrated feedback and active feedback selection | Independent local Git repository; commit `6571f7d`; 102 tests pass; GitHub remote/push not yet configured |
-| MLE-LEGO | Self-improving data Harnesses: dependency-aware edits, experience reuse, and continuous feedback | Snapshot included under `projects/mle-lego/`; Technology One implementation; 56 tests pass; Technologies Two and Three remain planned |
+| MLE-Aladdin | Data construction for generative ML under partially known requirements, including calibrated feedback and active feedback selection | Independent local Git repository; commit `6571f7d`; 102 tests pass; separate GitHub publication remains pending |
+| MLE-LEGO | Self-improving data Harnesses: dependency-aware edits, experience reuse, and continuous feedback | Snapshot published under `projects/mle-lego/`; Technology One implementation; 56 tests pass; Technologies Two and Three remain planned |
 
 These projects have separate source trees, protocols, dependencies, and
 research claims. The Aladdin source is intentionally not copied into this
@@ -61,7 +61,7 @@ outside Git. See the MLE-LEGO data and server handoff documentation for setup.
 ## Project Status
 
 This umbrella checkout includes the MLE-LEGO snapshot. Aladdin is developed in
-its separate local repository. Neither contribution has been pushed to its
-intended GitHub remote from the current execution environment. Current
-implementation and experiment boundaries are tracked in
+its separate local repository and is not copied here. The umbrella repository
+is published at `Mars-aliens/Data-Centric-RSI`; current implementation and
+experiment boundaries are tracked in
 `docs/project-status.md`.

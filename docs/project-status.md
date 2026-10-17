@@ -48,8 +48,9 @@ datasets, environments, protocols, or source histories.
 - **Not established:** strict dependency-aware-joint formal ten-seed
   comparison, per-seed joint-proposal coverage, final method superiority, and
   long-horizon 100/300-batch joint validation.
-- **Publication:** no GitHub remote or push is configured in the current
-  execution environment.
+- **Publication:** the prepared snapshot is published through the umbrella
+  repository at `Mars-aliens/Data-Centric-RSI` on `main`; the standalone tree
+  has no separate Git history yet.
 
 ## Umbrella Project
 
@@ -60,13 +61,15 @@ datasets, environments, protocols, or source histories.
 - The umbrella checkout contains an MLE-LEGO snapshot under
   `projects/mle-lego/`. It currently duplicates the standalone prepared tree;
   designate one canonical editable source before accepting changes in both.
+- **Publication:** the umbrella `main` branch is published at
+  `Mars-aliens/Data-Centric-RSI`; the initial repository commit is `f662d5c`.
 - No shared code has been extracted. Define and test a common interface only
   after both projects have a concrete integration requirement.
 
 ## Immediate Coordination Tasks
 
 1. Configure and verify the Aladdin GitHub remote, then push its existing
-   history. For MLE-LEGO, first choose whether the standalone tree or the
+   history. For MLE-LEGO, choose whether the standalone tree or the published
    umbrella snapshot is canonical; the standalone tree currently has no Git
    history to push.
 2. Decide whether the umbrella is documentation-only, uses Git submodules, or
