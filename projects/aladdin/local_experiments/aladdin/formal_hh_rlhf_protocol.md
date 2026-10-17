@@ -1,67 +1,63 @@
-# HH-RLHF Qwen Protocol
+# HH-RLHF Qwen 协议
 
-This document is the canonical flow for the current Aladdin core-technology-one
-experiment. The old `formal-hh-rlhf-qwen-v1` run is retained as a historical
-baseline; the current main strategy is `aladdin-qwen-reliable` under
-`custom-diagnostic-v1`.
+本文档是当前 Aladdin 核心技术一实验的规范流程。旧的
+formal-hh-rlhf-qwen-v1 运行作为历史基线保留；当前主策略是
+aladdin-qwen-reliable，协议标记为 custom-diagnostic-v1。
 
-```mermaid
+~~~mermaid
 flowchart TD
-    A[Anthropic HH-RLHF train<br/>fixed dataset revision] --> B[Prompt-level split<br/>predeclared split seeds]
-    B --> C{Split audit<br/>prompt overlap = 0}
-    C -->|fail| X[Abort run]
-    C -->|pass| D[Shared seed groups: 64<br/>held-in pool: 256<br/>held-out groups: 512]
-    D --> E1[seed-only<br/>use 64 seed groups]
-    D --> E2[random<br/>select 32 feedback groups]
-    D --> E3[aladdin-qwen-reliable<br/>target rank=0.35 + 25% novelty]
-    E2 --> F[Fixed Qwen A/B feedback<br/>order from seed + group_id]
+    A[Anthropic HH-RLHF train<br/>固定数据集 revision] --> B[按 prompt 划分<br/>预先声明 split seeds]
+    B --> C{划分审计<br/>prompt 重叠 = 0}
+    C -->|失败| X[终止运行]
+    C -->|通过| D[共享 seed groups: 64<br/>held-in pool: 256<br/>held-out groups: 512]
+    D --> E1[seed-only<br/>使用 64 个 seed groups]
+    D --> E2[random<br/>选择 32 个反馈 groups]
+    D --> E3[aladdin-qwen-reliable<br/>目标 rank=0.35 + 25% 新颖性]
+    E2 --> F[固定 Qwen A/B 反馈<br/>顺序由 seed + group_id 决定]
     E3 --> F
-    E1 --> G[Seed labels]
-    F --> H[LLM-label records]
-    E2 --> I[Oracle-label diagnostic]
+    E1 --> G[Seed 标签]
+    F --> H[LLM 标签记录]
+    E2 --> I[Oracle 标签诊断]
     E3 --> I
-    G --> J[Qwen LoRA preference classifier]
+    G --> J[Qwen LoRA 偏好分类器]
     H --> J
-    I --> K[Qwen LoRA oracle diagnostic]
-    J --> L[Held-out pairwise accuracy]
-    K --> M[LLM-label vs oracle-label gap]
-    L --> N[Paired analysis over seeds 17..26]
+    I --> K[Qwen LoRA Oracle 诊断]
+    J --> L[Held-out 成对准确率]
+    K --> M[LLM 标签与 Oracle 标签差距]
+    L --> N[跨 seeds 的配对分析]
     M --> N
-    N --> O[Report trend or stable evidence<br/>CI crossing zero means no claim of advantage]
-```
+    N --> O[报告趋势或稳定证据<br/>CI 跨过零表示不能声称有优势]
+~~~
 
-## Frozen Controls
+## 冻结控制项
 
-| Component | Formal setting |
+| 组件 | 正式设置 |
 |---|---|
-| Strategies | `seed-only`, `random`, `aladdin-qwen-reliable` |
-| Seeds | `17..26` per split |
-| Split | `prompt`, predeclared split seed, abort on overlap |
-| Feedback budget | 32 groups per feedback strategy |
-| Training exposure | `equal-epochs`, 100 seed-only reference steps |
-| Evaluation batch | 8 for split 17/23/29; 16 for split 37 |
-| Feedback model | `Qwen/Qwen2.5-7B-Instruct`, pinned revision |
-| Task model | Same Qwen snapshot with LoRA preference classifier |
-| Selector | 75% target-centered uncertainty value + 25% prompt novelty; target rank `0.35` |
-| Evaluation | 512 held-out groups, pairwise accuracy |
-| Test set | Official test remains sealed |
+| 策略 | seed-only、random、aladdin-qwen-reliable |
+| Seeds | 每个 split 使用 17..26 |
+| Split | prompt，预先声明 split seed，重叠即终止 |
+| 反馈预算 | 每种反馈策略 32 groups |
+| 训练暴露量 | equal-epochs，seed-only 参考为 100 steps |
+| 评估 batch | split 17/23/29 为 8；split 37 为 16 |
+| 反馈模型 | Qwen/Qwen2.5-7B-Instruct，固定 revision |
+| 任务模型 | 相同 Qwen snapshot，使用 LoRA 偏好分类器 |
+| 选择器 | 75% 以目标为中心的不确定性价值 + 25% prompt 新颖性；目标 rank 0.35 |
+| 评估 | 512 个 held-out groups，成对准确率 |
+| 测试集 | 官方 test 保持封存 |
 
-## Split Schedule
+## Split 安排
 
-The completed schedule contains prompt splits 17, 23, 29 and 37. Results are
-reported within split using paired seeds; split-level averages are descriptive
-and are not treated as a pooled test over independent observations.
+已完成的安排包含 prompt splits 17、23、29 和 37。每个 split 内使用
+配对 seeds 报告；split 层平均值只作描述性统计，不作为独立观测的合并检验。
 
-Split 17 is exploratory because the reliable target was fixed after the earlier
-diagnostic. Splits 23, 29 and 37 are confirmation runs under the frozen rule.
-The split-37 Oracle-label result is lower than random and is retained as
-heterogeneity evidence; it is not omitted in favor of the LLM-label result.
+Split 17 属于探索性运行，因为 reliable target 是在较早诊断之后固定的。
+Splits 23、29 和 37 是按冻结规则进行的确认运行。Split 37 的
+Oracle-label 结果低于 random，应作为异质性证据保留，不能为了使用
+LLM-label 结果而省略。
 
-## Interpretation Boundary
+## 解释边界
 
-This is a single-round historical replay. Qwen supplies simulated feedback from
-existing HH-RLHF pairs. The run does not create new answers, collect new human
-labels, or update the selector from downstream training gain. It tests whether
-the selection rule improves this downstream preference-classification task. It
-does not demonstrate the complete recursive RSI loop, technical two, technical
-three, SFT, DPO, or official HH-RLHF test performance.
+这是单轮历史 replay。Qwen 使用已有 HH-RLHF pairs 模拟反馈。该运行不会
+生成新答案、收集新的人工标签，也不会根据下游训练增益更新选择器。
+它只测试选择规则是否改善下游偏好分类任务，不能证明完整递归 RSI loop、
+技术二、技术三、SFT、DPO 或官方 HH-RLHF 测试集性能。

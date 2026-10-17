@@ -1,42 +1,41 @@
-# Aladdin Experiment Report
+# Aladdin 实验报告
 
-## Identity
+## 基本信息
 
-- Repository commit:
-- Experiment name:
-- Operator:
-- Server/GPU:
-- Python environment:
-- Endpoint model and revision:
+- 仓库 commit：
+- 实验名称：
+- 运行者：
+- 服务器/GPU：
+- Python 环境：
+- Endpoint 模型及 revision：
 
-## Inputs
+## 输入
 
-- Dataset path (sanitized):
-- Dataset SHA-256:
-- Requirements/config path (sanitized):
-- Split seeds:
-- Policy seeds:
-- Final-test accessed: `true` / `false`
+- 数据集路径（脱敏）：
+- 数据集 SHA-256：
+- 依赖/配置路径（脱敏）：
+- Split seeds：
+- Policy seeds：
+- 是否访问 final-test：true / false
 
-## Budget
+## 预算
 
-- Feedback requests:
-- LLM calls/tokens:
-- Training steps:
-- Evaluation examples:
-- Wall-clock time:
+- 反馈请求数：
+- LLM 调用数/Token 数：
+- 训练步数：
+- 评估样本数：
+- 实际运行时间：
 
-## Results
+## 结果
 
-- Output JSON path (external):
-- Completed conditions:
-- Primary metric:
-- Baseline metric:
-- Paired delta and confidence interval:
-- Leakage audit:
+- 外部输出 JSON 路径：
+- 已完成条件数：
+- 主指标：
+- 基线指标：
+- 配对差异及置信区间：
+- 泄漏审计：
 
-## Interpretation
+## 解释
 
-State only what this run supports. Distinguish a frozen replay, a new-human-
-feedback run, an independent-dataset result, and a downstream training result.
-List failures, skipped conditions, and remaining limitations.
+只陈述本次运行能够支持的结论。区分冻结 replay、新人工反馈运行、
+独立数据集结果和下游训练结果。列出失败条件、跳过条件以及剩余限制。

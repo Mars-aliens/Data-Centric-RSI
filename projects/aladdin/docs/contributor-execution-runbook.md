@@ -1,33 +1,29 @@
-# Contributor Execution Runbook
+# 贡献者执行手册
 
-This document is for a server contributor executing a frozen Aladdin
-experiment.
+本文档供服务器贡献者执行已经冻结的 Aladdin 实验。
 
-## Before execution
+## 执行前
 
-```bash
+~~~bash
 git status --short
 git rev-parse HEAD
 export ALADDIN_ROOT="$PWD"
 export PYTHONPATH="$ALADDIN_ROOT"
 python -m pytest local_experiments/tests core_system/tests -q
 python scripts/check_aladdin_install.py
-```
+~~~
 
-Confirm that the dataset and model are outside the checkout, that the endpoint
-serves the expected model, and that the selected GPU is free. Do not put
-private paths or credentials into a committed profile.
+确认数据集和模型位于代码检出目录之外，endpoint 提供的是预期模型，
+并且所选 GPU 当前可用。不要把私有路径或凭据写入提交的 profile。
 
-## During execution
+## 执行期间
 
-Use the exact command from the experiment issue. Write logs and outputs under
-an external directory such as `$ALADDIN_RUNS`. A resumed run must use the same
-run identifier and immutable input files. Do not read final-test labels before
-the pre-registered final evaluation step.
+使用实验 issue 中的精确命令。将日志和输出写入仓库外的目录，例如
+$ALADDIN_RUNS。恢复运行时必须使用相同的 run identifier 和不可变输入文件。
+在预注册的最终评估步骤之前，不得读取 final-test 标签。
 
-## After execution
+## 执行后
 
-Check the output status, number of completed conditions, data hash, budget,
-and `final_test_accessed` flag. Run the assigned analyzer and attach only
-small, non-sensitive summaries to the pull request or issue. Keep raw outputs
-on the server unless the owner explicitly approves a sanitized artifact.
+检查输出状态、已完成条件数、数据哈希、预算和 final_test_accessed 标志。
+运行指定的分析器，只将小型且不含敏感信息的摘要附加到 pull request 或
+issue。除非负责人明确批准经过清理的构件，否则原始输出必须保留在服务器上。

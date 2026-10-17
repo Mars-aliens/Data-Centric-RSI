@@ -1,7 +1,7 @@
 Data-Centric RSI GitHub release package
 Release date: 2026-10-17
 File count: 270
-Payload bytes: 1465141
+Payload bytes: 1460947
 
 Included files:
 .gitattributes	100
@@ -18,8 +18,8 @@ projects\aladdin\.github\ISSUE_TEMPLATE\experiment-execution.md	588
 projects\aladdin\.github\pull_request_template.md	444
 projects\aladdin\.gitignore	494
 projects\aladdin\CONTRIBUTING.md	1567
-projects\aladdin\README.md	4903
-projects\aladdin\core_system\README.md	557
+projects\aladdin\README.md	4519
+projects\aladdin\core_system\README.md	503
 projects\aladdin\core_system\__init__.py	43
 projects\aladdin\core_system\configs\shared_core_local.json	512
 projects\aladdin\core_system\demo.py	3163
@@ -39,16 +39,16 @@ projects\aladdin\core_system\mle_core\text_components.py	3367
 projects\aladdin\core_system\real_local_run.py	2145
 projects\aladdin\core_system\tests\__init__.py	1
 projects\aladdin\core_system\tests\test_smoke.py	12983
-projects\aladdin\docs\contributor-execution-runbook.md	1179
-projects\aladdin\docs\experiment-parameters.md	9695
-projects\aladdin\docs\run-report-template.md	844
+projects\aladdin\docs\contributor-execution-runbook.md	1105
+projects\aladdin\docs\experiment-parameters.md	8795
+projects\aladdin\docs\run-report-template.md	824
 projects\aladdin\local_experiments\__init__.py	77
-projects\aladdin\local_experiments\aladdin\README.md	453
+projects\aladdin\local_experiments\aladdin\README.md	369
 projects\aladdin\local_experiments\aladdin\__init__.py	37
 projects\aladdin\local_experiments\aladdin\active_feedback_helpsteer2.py	34192
 projects\aladdin\local_experiments\aladdin\active_feedback_helpsteer2_multiround.py	18660
 projects\aladdin\local_experiments\aladdin\active_feedback_impact.py	20639
-projects\aladdin\local_experiments\aladdin\active_feedback_impact_protocol.md	5238
+projects\aladdin\local_experiments\aladdin\active_feedback_impact_protocol.md	4596
 projects\aladdin\local_experiments\aladdin\analyze_active_feedback_helpsteer2.py	7629
 projects\aladdin\local_experiments\aladdin\analyze_feedback_channels.py	5063
 projects\aladdin\local_experiments\aladdin\analyze_helpsteer2_qwen_lora_matrix.py	4027
@@ -61,7 +61,7 @@ projects\aladdin\local_experiments\aladdin\audit_dataset_protocol.py	2343
 projects\aladdin\local_experiments\aladdin\audit_qwen_selector_checkpoint.py	7065
 projects\aladdin\local_experiments\aladdin\audit_qwen_selector_selection.py	18065
 projects\aladdin\local_experiments\aladdin\config.json	475
-projects\aladdin\local_experiments\aladdin\external_baselines\README.md	1829
+projects\aladdin\local_experiments\aladdin\external_baselines\README.md	1742
 projects\aladdin\local_experiments\aladdin\external_baselines\__init__.py	842
 projects\aladdin\local_experiments\aladdin\external_baselines\__main__.py	851
 projects\aladdin\local_experiments\aladdin\external_baselines\adapters.py	3300
@@ -71,8 +71,8 @@ projects\aladdin\local_experiments\aladdin\external_baselines\protocol.py	7538
 projects\aladdin\local_experiments\aladdin\external_baselines\server-configs.json	2996
 projects\aladdin\local_experiments\aladdin\external_baselines\server-configs.local.json	2824
 projects\aladdin\local_experiments\aladdin\finalize_hh_rlhf_qwen_audit.py	4996
-projects\aladdin\local_experiments\aladdin\formal_hh_rlhf_protocol.md	3039
-projects\aladdin\local_experiments\aladdin\helpsteer2-technique-1-server-handoff.md	8745
+projects\aladdin\local_experiments\aladdin\formal_hh_rlhf_protocol.md	2817
+projects\aladdin\local_experiments\aladdin\helpsteer2-technique-1-server-handoff.md	7834
 projects\aladdin\local_experiments\aladdin\helpsteer2_feedback.py	21377
 projects\aladdin\local_experiments\aladdin\helpsteer2_llm_cost_pilot.py	21054
 projects\aladdin\local_experiments\aladdin\helpsteer2_qwen_lora_matrix.py	12766
@@ -83,8 +83,8 @@ projects\aladdin\local_experiments\aladdin\hh_rlhf_llm_smoke.py	9802
 projects\aladdin\local_experiments\aladdin\hh_rlhf_llm_training_pilot.py	12599
 projects\aladdin\local_experiments\aladdin\hh_rlhf_qwen_lora_label_diagnostic.py	29402
 projects\aladdin\local_experiments\aladdin\hh_rlhf_qwen_lora_pilot.py	13800
-projects\aladdin\local_experiments\aladdin\integrated_pipeline\README.md	6402
-projects\aladdin\local_experiments\aladdin\integrated_pipeline\SERVER_HANDOFF.md	1974
+projects\aladdin\local_experiments\aladdin\integrated_pipeline\README.md	5613
+projects\aladdin\local_experiments\aladdin\integrated_pipeline\SERVER_HANDOFF.md	1947
 projects\aladdin\local_experiments\aladdin\integrated_pipeline\__init__.py	460
 projects\aladdin\local_experiments\aladdin\integrated_pipeline\adapters.py	28389
 projects\aladdin\local_experiments\aladdin\integrated_pipeline\calibration.py	7333

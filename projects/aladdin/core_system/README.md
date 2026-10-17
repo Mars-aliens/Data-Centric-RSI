@@ -1,16 +1,15 @@
-# Aladdin Core System
+# Aladdin 核心系统
 
-This directory contains the small action-system layer used by Aladdin. It
-provides task records, artifacts, budgets, feedback records, provenance, and
-the local demo/task-model interfaces. The Aladdin research strategies live in
-`local_experiments/aladdin`, not in this lower-level package.
+本目录包含 Aladdin 使用的轻量级动作系统层，提供任务记录、构件、预算、
+反馈记录、来源追踪以及本地演示和任务模型接口。Aladdin 的研究策略位于
+local_experiments/aladdin，而不在这个底层包中。
 
-Run the dependency-light demo from the repository root:
+从仓库根目录运行依赖较少的演示：
 
-```bash
+~~~bash
 export PYTHONPATH="$PWD"
 python -m core_system.demo
-```
+~~~
 
-Generated demo artifacts should remain outside Git. See the repository root
-README for the Aladdin experiment protocol.
+生成的演示构件应保存在 Git 之外。Aladdin 实验协议请参阅仓库根目录的
+README。
