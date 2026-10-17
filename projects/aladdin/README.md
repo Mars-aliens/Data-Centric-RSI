@@ -2,10 +2,8 @@
 
 Aladdin is the data-centric RSI research project for generative ML tasks
 whose requirements and quality judgments are only partially known at the
-start. This directory contains the Aladdin implementation inside the
-Data-Centric-RSI umbrella repository. MLE-LEGO is maintained separately in
-the sibling directory `../mle-lego`; the two projects keep their own
-dependencies, protocols, and tests.
+start. This repository contains only the Aladdin implementation. MLE-LEGO is
+a separate project and is intentionally not included here.
 
 ## Research scope
 
@@ -84,6 +82,11 @@ feedback.
 
 The complete server handoff is in
 `local_experiments/aladdin/integrated_pipeline/SERVER_HANDOFF.md`.
+
+The frozen values for the HelpSteer2 replay, Qwen downstream validation,
+HH-RLHF diagnostic, and integrated pipeline are listed in
+`docs/experiment-parameters.md`. Do not combine their metrics into one
+experiment result.
 
 ## Active feedback and downstream validation
 

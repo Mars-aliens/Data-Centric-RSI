@@ -30,6 +30,10 @@ class QwenTrainingProtocolTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_matrix({"random": _config(), "active": _config(max_steps=100)})
 
+    def test_allows_zero_lora_dropout(self):
+        report = validate_matrix({"random": _config(lora_dropout=0.0)})
+        self.assertEqual(report["status"], "ready")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,9 +30,10 @@ def validate_protocol(config: dict[str, Any]) -> dict[str, Any]:
     for key in positive:
         if int(config[key]) <= 0:
             raise ValueError(f"{key} must be positive")
-    for key in ("learning_rate", "lora_dropout"):
-        if float(config[key]) <= 0:
-            raise ValueError(f"{key} must be positive")
+    if float(config["learning_rate"]) <= 0:
+        raise ValueError("learning_rate must be positive")
+    if float(config["lora_dropout"]) < 0:
+        raise ValueError("lora_dropout must be non-negative")
     if not 0 <= float(config["lora_dropout"]) < 1:
         raise ValueError("lora_dropout must be in [0, 1)")
     if int(config["lora_r"]) <= 0 or int(config["lora_alpha"]) <= 0:

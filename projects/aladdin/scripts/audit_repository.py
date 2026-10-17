@@ -17,6 +17,8 @@ def main() -> None:
     for path in root.rglob("*"):
         if path.resolve() == self_path:
             continue
+        if ".git" in path.parts:
+            continue
         if path.name in {"audit_repository.py", "check_aladdin_install.py"} and path.parent.name == "scripts":
             continue
         if path.is_dir() and path.name in forbidden_names:

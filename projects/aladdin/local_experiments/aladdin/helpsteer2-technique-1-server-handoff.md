@@ -13,6 +13,10 @@ demonstrate the complete recursive RSI system.
 
 ## Frozen protocol
 
+The complete parameter table and reproduction command are maintained in
+`docs/experiment-parameters.md`, Section 1. The values below are repeated
+here so that a server handoff remains self-contained.
+
 - Dataset: `nvidia/HelpSteer2`, revision
   `990b2711a36180dd19d9c94b8627844866f8982a`.
 - Only the `seed`, `held_in`, and `held_out` splits from
@@ -46,6 +50,12 @@ demonstrate the complete recursive RSI system.
   pairs, against the simulated target profile. Ties are excluded and counted.
 - `final_test` is never used for selection, training, parameter choice, or
   evaluation. Unlock it only after the protocol and method are frozen.
+
+The frozen factorial is 4 split seeds (`17, 23, 29, 37`) x 3 policy seeds
+(`17, 18, 19`) x 3 target profiles x 5 strategies = 180 conditions. The
+limits are 64 seed groups, 256 query-pool groups, 512 selection-pool groups,
+512 held-out groups, 1,800 feedback seconds, 48 maximum queries, 64 selected
+groups, 25% random reserve, and tie margin 0.0.
 
 ## Strategies
 
@@ -154,8 +164,8 @@ held-out scores and then present the same matrix as confirmatory evidence.
 
 The experiment requires Python, NumPy, and scikit-learn only. It does not need a
 GPU, vLLM, Transformers, or a model API. On the server, install the pinned
-`requirements-integrated-aladdin.txt` dependencies in the chosen Python
-environment, set `PYTHONPATH` to the extracted package root, and use the same
+`requirements.txt` dependencies in the chosen Python environment, set
+`PYTHONPATH` to the extracted package root, and use the same
 dataset revision and checksums as the local run. Keep the normalized dataset
 outside the source archive and verify its checksum before starting.
 
