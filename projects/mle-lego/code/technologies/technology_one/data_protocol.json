@@ -1,0 +1,24 @@
+{
+  "task_id": "helpsteer2-preference",
+  "format": "jsonl",
+  "required_fields": ["record_id", "split", "input", "target"],
+  "optional_fields": [
+    "task_id",
+    "source_group_id",
+    "parent_record_ids",
+    "batch_id",
+    "feedback",
+    "metadata"
+  ],
+  "allowed_splits": ["seed", "development", "held_in", "held_out", "final_test"],
+  "feedback": {
+    "source_batch_field": "source_batch",
+    "release_batch_field": "release_batch",
+    "allowed_delays": [0, 2, 5]
+  },
+  "evaluation_policy": {
+    "held_in": "candidate_selection",
+    "held_out": "regression_report_only",
+    "final_test": "final_report_only"
+  }
+}

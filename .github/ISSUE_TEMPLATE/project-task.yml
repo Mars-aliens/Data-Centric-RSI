@@ -1,0 +1,45 @@
+name: Project task
+description: Plan code, documentation, or integration work in Data-Centric RSI
+title: "project: "
+labels:
+  - project-task
+body:
+  - type: dropdown
+    id: project
+    attributes:
+      label: Project area
+      options:
+        - MLE-LEGO
+        - Aladdin
+        - Cross-project integration
+        - Documentation and coordination
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: State the research or engineering objective and its motivation.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and constraints
+      description: List affected directories, protocol constraints, and exclusions.
+    validations:
+      required: true
+  - type: textarea
+    id: ownership
+    attributes:
+      label: Ownership
+      description: Name the implementer, executor (if needed), and reviewer.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Define tests, evidence, and documentation needed to close this task.
+    validations:
+      required: true

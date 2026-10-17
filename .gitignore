@@ -1,0 +1,28 @@
+# Python and test artifacts
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.venv/
+.env
+.DS_Store
+
+# Private configuration and runtime artifacts
+server_profile.*.json
+!server_profile.*.example.json
+runs/
+logs/
+tmp/
+models/
+checkpoints/
+
+# Datasets and generated packages
+data/*.jsonl
+*.pt
+*.pth
+*.safetensors
+*.ckpt
+*.zip
+*.tar
+*.tar.gz
+*.egg-info/

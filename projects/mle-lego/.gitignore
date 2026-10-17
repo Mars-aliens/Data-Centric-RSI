@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+.DS_Store
+
+# Private server configuration and runtime state.
+server_profile.*.json
+!server_profile.*.example.json
+runs/
+logs/
+tmp/
+models/
+checkpoints/
+
+# External datasets and generated artifacts.
+data/*.jsonl
+data/*.json
+*.pt
+*.pth
+*.safetensors
+*.ckpt
+*.zip
+*.tar
+*.tar.gz
+*.egg-info/

@@ -1,0 +1,53 @@
+{
+  "contract_version": "lego-server-action-v1",
+  "purpose": "Action System contract for real-model server runs; local core remains orchestration and audit storage.",
+  "required_components": {
+    "decision_policy": {
+      "input": "Observation JSON plus eligible feedback and trace references",
+      "output": "One JSON object containing proposal (action_type, arguments, expected_versions, estimated_cost, rationale) and an optional bounded reflection",
+      "must_record": ["model_id", "model_revision", "system_prompt_hash", "user_prompt_hash", "input_artifact_ids", "output_token_count"],
+      "react_constraints": ["one permitted action per call", "no persistent Harness edit", "no hidden chain-of-thought in the audit record"],
+      "reflexion_constraints": ["reflection is text-only episodic memory", "reflection becomes eligible from the next batch", "reflection tokens and calls use the shared decision budget", "no persistent code, Prompt, Skill, or Memory-rule edit"]
+    },
+    "task_model_trainer": {
+      "input": "Training records, parent checkpoint, pinned recipe, seed",
+      "output": "Checkpoint path and content hash",
+      "must_record": ["base_model_revision", "initial_checkpoint_path", "training_recipe_hash", "seed", "gpu_type", "training_steps", "wall_clock_seconds"]
+    },
+    "evaluator": {
+      "input": "Checkpoint path, split name, evaluator revision",
+      "output": "Metrics JSON and evaluator cost",
+      "must_record": ["split", "record_count", "metric_definition", "evaluator_revision"]
+    }
+  },
+  "json_command_rules": {
+    "transport": "stdin_json_to_stdout_json",
+    "command_form": "argv_array_only_no_shell_string",
+    "policy_protocol": "lego-policy-v1",
+    "trainer_protocol": "lego-trainer-v1",
+    "evaluator_protocol": "lego-evaluator-v1",
+    "stdout": "exactly_one_json_object",
+    "stderr": "diagnostics_only",
+    "nonzero_exit": "run_fails_and_is_logged"
+  },
+  "invariants": [
+    "held_in is the only candidate-selection split",
+    "held_out is regression-report-only before final freeze",
+    "final_test remains locked until all candidate decisions finish",
+    "candidate branches do not share newly created checkpoints or memory",
+    "failed candidates cannot mutate the active harness",
+    "all calls, tokens, training steps, evaluator calls and feedback requests count toward budget",
+    "every output contains dataset, harness, code, model and checkpoint provenance"
+  ],
+  "server_run_order": [
+    "preflight",
+    "model_smoke_test",
+    "fixed_harness_react",
+    "react_reflexion",
+    "general_self_harness",
+    "curateevo_adaptation",
+    "project_ablations",
+    "dependency_aware_joint_edit",
+    "final_test_report"
+  ]
+}

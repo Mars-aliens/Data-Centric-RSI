@@ -1,0 +1,7 @@
+# Optional packages for future real-model and larger-data experiments.
+# Install this only when those components are implemented.
+-r requirements.txt
+pandas==2.2.2
+torch==2.7.1
+transformers==4.52.4
+datasets==3.6.0

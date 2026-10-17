@@ -1,0 +1,6 @@
+# Minimal dependencies for the current normalized-JSONL LEGO smoke test.
+numpy==1.26.4
+scikit-learn==1.5.1
+
+# The decision LLM runs in the existing vllm-serve environment.
+# The Task Model may use a separate existing GPU environment for server runs.

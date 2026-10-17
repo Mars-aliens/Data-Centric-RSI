@@ -1,0 +1,66 @@
+name: MLE-LEGO experiment execution
+description: Assign a reproducible MLE-LEGO server experiment
+title: "experiment: LEGO "
+labels:
+  - experiment
+  - mle-lego
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Follow `projects/mle-lego/docs/contributor-execution-runbook.md`. Do not change the assigned protocol or use final-test data for candidate selection.
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or tag
+      description: Exact umbrella-repository revision to execute.
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: Private profile revision/hash
+      description: Keep the profile itself outside GitHub.
+    validations:
+      required: true
+  - type: input
+    id: data
+    attributes:
+      label: Data manifest and hashes
+      description: Include dataset source revision and normalized split hashes.
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Task Model and Decision LLM revisions
+      description: Record model IDs and immutable revisions.
+    validations:
+      required: true
+  - type: input
+    id: run
+    attributes:
+      label: Run parameters
+      description: Mode, seeds, batches, budgets, GPU, and output root.
+    validations:
+      required: true
+  - type: checkboxes
+    id: gates
+    attributes:
+      label: Execution gates
+      options:
+        - label: Smoke test completes before formal execution.
+          required: true
+        - label: A new output root is used.
+          required: true
+        - label: final_test remains locked unless explicitly authorized.
+          required: true
+        - label: Data, weights, credentials, and private profiles stay out of Git.
+          required: true
+  - type: textarea
+    id: completion
+    attributes:
+      label: Completion criteria and evidence location
+      description: List expected summaries, audit outputs, and artifact links.
+    validations:
+      required: true

@@ -1,0 +1,78 @@
+name: Experiment execution
+description: Assign a reproducible Technology One server run
+title: "experiment: "
+labels:
+  - experiment
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill every execution field before assigning the issue. The contributor must run the recorded commit and return the evidence package.
+  - type: input
+    id: objective
+    attributes:
+      label: Objective
+      description: What research comparison or validation is being executed?
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Git commit or tag
+      description: Exact source revision to execute.
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: Private profile revision or hash
+      description: Profile is kept off GitHub; record its identifying hash here.
+    validations:
+      required: true
+  - type: input
+    id: data
+    attributes:
+      label: Data manifest and SHA256
+      description: Record source revision, split manifest, and hashes.
+    validations:
+      required: true
+  - type: input
+    id: models
+    attributes:
+      label: Model revisions
+      description: Record Task Model and Decision LLM IDs and revisions.
+    validations:
+      required: true
+  - type: input
+    id: execution
+    attributes:
+      label: Execution parameters
+      description: Record mode, seeds, batches, budgets, GPU, and output root.
+    validations:
+      required: true
+  - type: checkboxes
+    id: gates
+    attributes:
+      label: Required gates
+      options:
+        - label: Smoke test is required before formal execution.
+          required: true
+        - label: final_test remains locked.
+          required: true
+        - label: Results will use a new output root.
+          required: true
+        - label: Dataset and model weights will not be committed.
+          required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Completion criteria
+      description: List required summaries, audit command, and evidence location.
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Contributor report
+      description: Contributor fills this after execution using docs/contributor-execution-runbook.md.
+      render: text
