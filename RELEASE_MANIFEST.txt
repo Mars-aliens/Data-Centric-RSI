@@ -1,12 +1,12 @@
 Data-Centric RSI GitHub release package
 Release date: 2026-10-17
-File count: 269
-Payload bytes: 1448850
+File count: 270
+Payload bytes: 1456892
 
 Included files:
 .gitattributes	100
 .github\ISSUE_TEMPLATE\aladdin-experiment.yml	2043
-.github\ISSUE_TEMPLATE\mle-lego-experiment.yml	2004
+.github\ISSUE_TEMPLATE\mle-lego-experiment.yml	3394
 .github\ISSUE_TEMPLATE\project-task.yml	1199
 .gitignore	345
 CONTRIBUTING.md	1495
@@ -233,14 +233,15 @@ projects\mle-lego\CONTRIBUTING.md	1792
 projects\mle-lego\data\README.md	397
 projects\mle-lego\docs\baseline-freeze-protocol.md	3591
 projects\mle-lego\docs\baseline-research.md	594
-projects\mle-lego\docs\contributor-execution-runbook.md	19854
+projects\mle-lego\docs\contributor-execution-runbook.md	20057
 projects\mle-lego\docs\current-status.md	1532
 projects\mle-lego\docs\decision-model-selection.md	2000
 projects\mle-lego\docs\research-scope.md	15895
 projects\mle-lego\docs\run-report-template.md	973
 projects\mle-lego\docs\server-handoff.md	4159
+projects\mle-lego\docs\technical-one-experiment-parameter-card.md	6055
 projects\mle-lego\docs\technical-one-progress-archive.md	15238
-projects\mle-lego\docs\technical-one-protocol.md	7549
+projects\mle-lego\docs\technical-one-protocol.md	7805
 projects\mle-lego\experiments\README.md	232
 projects\mle-lego\experiments\technology_one\README.md	212
 projects\mle-lego\experiments\technology_three\README.md	113
@@ -272,4 +273,4 @@ projects\mle-lego\scripts\run_technology_one_evolution.sh	1807
 projects\mle-lego\scripts\run_technology_one_local.sh	650
 projects\mle-lego\scripts\summarize_technology_one_evolution.py	1910
 pytest.ini	226
-README.md	2980
+README.md	3118

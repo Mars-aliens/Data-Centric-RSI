@@ -33,6 +33,7 @@ Data-Centric-RSI/
 - 修改项目边界或共享接口前，先阅读[项目架构](docs/architecture.md)。
 - 分配实现和服务器运行工作前，先阅读[协作流程](docs/collaboration.md)。
 - MLE-LEGO 的安装、实验和现有证据见[项目说明](projects/mle-lego/README.md)。
+- MLE-LEGO 技术一的固定任务参数见[实验参数冻结卡](projects/mle-lego/docs/technical-one-experiment-parameter-card.md)。
 - MLE-Aladdin 的安装、实验和集成流水线见[项目说明](projects/aladdin/README.md)。
 - 跨项目进度及待办事项见[项目状态](docs/project-status.md)。
 - 可复现的 MLE-LEGO 服务器实验请遵循[贡献者执行手册](projects/mle-lego/docs/contributor-execution-runbook.md)。

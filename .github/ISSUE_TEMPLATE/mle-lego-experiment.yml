@@ -1,6 +1,6 @@
-name: MLE-LEGO experiment execution
-description: Assign a reproducible MLE-LEGO server experiment
-title: "experiment: LEGO "
+name: MLE-LEGO 技术一实验执行
+description: 分配一次可复现的 MLE-LEGO 技术一服务器实验
+title: "实验：LEGO 技术一 "
 labels:
   - experiment
   - mle-lego
@@ -8,59 +8,97 @@ body:
   - type: markdown
     attributes:
       value: |
-        Follow `projects/mle-lego/docs/contributor-execution-runbook.md`. Do not change the assigned protocol or use final-test data for candidate selection.
+        请先阅读 `projects/mle-lego/docs/technical-one-experiment-parameter-card.md` 和 `projects/mle-lego/docs/contributor-execution-runbook.md`。不得修改已冻结参数，也不得用 final-test 数据选择候选。
   - type: input
     id: commit
     attributes:
-      label: Commit or tag
-      description: Exact umbrella-repository revision to execute.
+      label: Commit 或 tag
+      description: 必须执行的总仓库精确版本。
+    validations:
+      required: true
+  - type: dropdown
+    id: task_type
+    attributes:
+      label: 任务类型
+      description: 只能选择参数冻结卡中的一种任务。
+      options:
+        - smoke
+        - formal-comparison
+        - long-horizon
     validations:
       required: true
   - type: input
     id: profile
     attributes:
-      label: Private profile revision/hash
-      description: Keep the profile itself outside GitHub.
+      label: 私有 profile 版本/哈希
+      description: Profile 文件保存在服务器，不上传 GitHub。
     validations:
       required: true
   - type: input
     id: data
     attributes:
-      label: Data manifest and hashes
-      description: Include dataset source revision and normalized split hashes.
+      label: 数据清单和哈希
+      description: 填写数据来源 revision 和归一化切分文件 SHA256。
     validations:
       required: true
   - type: input
     id: model
     attributes:
-      label: Task Model and Decision LLM revisions
-      description: Record model IDs and immutable revisions.
+      label: Task Model 和 Decision LLM 版本
+      description: 填写模型 ID 和不可变 revision。
     validations:
       required: true
-  - type: input
-    id: run
+  - type: textarea
+    id: experiment_parameters
     attributes:
-      label: Run parameters
-      description: Mode, seeds, batches, budgets, GPU, and output root.
+      label: 实验参数块
+      description: 从参数冻结卡复制对应任务类型，并填写 seed、batch、模式、预算和 final_test 状态。
+      placeholder: |
+        task_type: formal-comparison
+        seeds: 17 23 29 31 37 41 43 47 53 59
+        evolution_batches: 10
+        component_matrix_batches: 1
+        train_group_budget: 1000
+        max_train_groups: 3000
+        max_eval_groups: 1000
+        command_retries: 3
+        retry_backoff_seconds: 15
+        final_test_unlocked: false
+    validations:
+      required: true
+  - type: textarea
+    id: server_parameters
+    attributes:
+      label: 服务器参数块
+      description: 填写 endpoint、GPU、Task Model 路径、profile 哈希、输出根和日志根；私有绝对路径可脱敏。
+      placeholder: |
+        decision_endpoint: http://127.0.0.1:8000/v1/chat/completions
+        gpu_id: <填写>
+        task_model_path: <填写或脱敏>
+        profile_sha256: <填写>
+        train_jsonl_sha256: <填写>
+        validation_jsonl_sha256: <填写>
+        output_root: <填写唯一目录>
+        log_root: <填写>
     validations:
       required: true
   - type: checkboxes
     id: gates
     attributes:
-      label: Execution gates
+      label: 执行门槛
       options:
-        - label: Smoke test completes before formal execution.
+        - label: 正式实验前已完成 smoke test。
           required: true
-        - label: A new output root is used.
+        - label: 本次任务使用唯一的新输出根。
           required: true
-        - label: final_test remains locked unless explicitly authorized.
+        - label: "`final_test` 保持锁定，除非另有明确授权。"
           required: true
-        - label: Data, weights, credentials, and private profiles stay out of Git.
+        - label: 数据、权重、凭据和私有 profile 不进入 Git。
           required: true
   - type: textarea
     id: completion
     attributes:
-      label: Completion criteria and evidence location
-      description: List expected summaries, audit outputs, and artifact links.
+      label: 完成条件和证据位置
+      description: 列出预期 summary 数量、审计输出和证据链接。
     validations:
       required: true

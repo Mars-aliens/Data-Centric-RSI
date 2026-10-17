@@ -1,6 +1,6 @@
 # 贡献者实验执行手册
 
-本手册说明贡献者如何从 GitHub 仓库执行技术一实验并提交可审计证据。除非 Issue 明确授权修订协议，否则不得更改协议、随机种子、模型版本、接受规则或数据切分。
+本手册说明贡献者如何从 GitHub 仓库执行技术一实验并提交可审计证据。Issue 中的任务参数必须来自[技术一实验参数冻结卡](technical-one-experiment-parameter-card.md)。除非 Issue 明确授权修订协议，否则不得更改协议、随机种子、模型版本、接受规则或数据切分。
 
 ## 角色
 
@@ -304,6 +304,7 @@ GPU_ID=<GPU编号> BATCHES=2 SEEDS="17" \
 MODES="independent dependency-aware-joint" \
 OUTPUT_ROOT="$SMOKE_ROOT" \
 PROFILE="$LEGO_ROOT/server_profile.evolution.qwen.json" \
+COMMAND_RETRIES=3 RETRY_BACKOFF_SECONDS=15 \
 bash "$LEGO_ROOT/scripts/run_technology_one_evolution_comparison_batch.sh" \
   2>&1 | tee "$LEGO_ROOT/logs/technology-one-smoke-<issue-id>.log"
 ```
@@ -345,7 +346,7 @@ $FORMAL_ROOT/evolution-comparison/dependency-aware-joint/<run>/summary.json
 ```bash
 OUTPUT_ROOT="$FORMAL_ROOT/evolution-comparison" \
 PROFILE="$LEGO_ROOT/server_profile.evolution.qwen.json" \
-GPU_ID=<GPU编号> BATCHES=10 \
+GPU_ID=<GPU编号> BATCHES=10 COMMAND_RETRIES=3 RETRY_BACKOFF_SECONDS=15 \
 SEEDS="17 23 29 31 37 41 43 47 53 59" \
 MODES="independent dependency-aware-joint" \
 bash "$LEGO_ROOT/scripts/run_technology_one_evolution_comparison_batch.sh"

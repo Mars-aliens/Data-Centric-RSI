@@ -112,6 +112,8 @@
 
 贡献者的逐步部署、数据校验、profile 预检、Decision LLM 连通性、两批次 smoke、GPU 排队、进度查询、失败恢复、证据归档和完整审计命令见[技术一贡献者实验执行手册](contributor-execution-runbook.md)。正式 Issue 必须给出精确 commit、私有 profile 哈希、数据哈希、模型版本、seed、batch、预算、GPU 和输出根；不能只写“运行技术一”。
 
+具体的 smoke、正式十 seed 比较和 100/300 批长程任务参数见[技术一实验参数冻结卡](technical-one-experiment-parameter-card.md)。贡献者只能执行 Issue 选择的任务类型，不能把默认值自行改成另一种实验。
+
 ## 8. 结论边界
 
 技术一要证明的是“可审计的 Harness 自我改进过程能够在相互依赖组件、候选验证和长程运行约束下工作”。它不要求每次 Decision LLM 提议都被接受，也不把高拒绝率自动解释为系统故障；拒绝必须按 regression、duplicate、invalid proposal、执行失败等原因分解。
