@@ -25,20 +25,15 @@
 git clone https://github.com/Mars-aliens/Data-Centric-RSI.git
 cd Data-Centric-RSI/projects/aladdin
 
-# 正式实验应替换为 Issue 中指定的冻结 commit。
-git checkout <FROZEN_COMMIT>
+# 使用 GitHub main 的最新代码，并记录实际运行 commit。
+git checkout main
+git pull --ff-only origin main
 git status --short
 git rev-parse HEAD
 ```
 
-如果仓库已经存在：
-
-```bash
-cd /path/to/Data-Centric-RSI
-git fetch origin
-git checkout <FROZEN_COMMIT>
-cd projects/aladdin
-```
+如果仓库已经存在，执行 `git pull --ff-only origin main` 后再记录
+`git rev-parse HEAD`。实验报告必须包含这个 commit。
 
 数据集、模型、日志和结果必须放在 `projects/aladdin/` 之外。
 
@@ -233,10 +228,10 @@ Qwen 结果分析：
   | tee "$RUN_ROOT/helpsteer2-qwen-lora-48-summary.txt"
 ```
 
-## 7. 向 GitHub Issue 返回结果
+## 7. 返回实验结果
 
-不要提交数据集、模型、checkpoint、日志或完整 JSON 运行结果。向 Issue 或
-Pull Request 返回以下信息：
+不要提交数据集、模型、checkpoint、日志或完整 JSON 运行结果。将下面的信息
+直接发给实验负责人：
 
 ```text
 repository: Mars-aliens/Data-Centric-RSI
@@ -253,8 +248,7 @@ output paths: external paths only
 summary: link or paste the analyzer summary
 ```
 
-执行者只报告运行事实。研究结论、参数调整和新实验必须由维护者在新的
-Issue 或经过审查的 Pull Request 中决定。
+执行者只报告运行事实。研究结论、参数调整和新实验由负责人统一决定。
 
 ## 8. 集成管线（独立工程验证）
 

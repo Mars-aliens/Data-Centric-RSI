@@ -109,7 +109,7 @@ split seeds、policy seeds、反馈预算、训练预算、endpoint 模型名称
 
 GitHub 仓库是协议和代码变更的唯一依据。执行贡献者应：
 
-1. 检出 issue 中指定的精确 commit；
+1. 从 GitHub `main` 拉取代码并记录实际运行的 commit；
 2. 执行列出的 preflight 和 smoke 命令；
 3. 只使用仓库外的数据/模型路径运行指定实验；
 4. 返回 commit、命令、日志、输出 manifest、哈希和摘要；

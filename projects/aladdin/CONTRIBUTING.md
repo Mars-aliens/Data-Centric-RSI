@@ -2,8 +2,8 @@
 
 Aladdin 和 MLE-LEGO 在总仓库中分别位于 `projects/aladdin/` 和
 `projects/mle-lego/`，各自拥有独立的命名空间、实验计划、依赖和结果目录。
-不要把 LEGO 代码或 LEGO 运行产物加入 Aladdin 目录。`D:\RSI\Aladdin` 是
-Aladdin 的独立本地开发副本；GitHub 协作以总仓库对应目录为准。
+不要把 LEGO 代码或 LEGO 运行产物加入 Aladdin 目录。GitHub 总仓库中的
+`projects/aladdin/` 是代码开发和实验协作入口。
 
 ## 代码修改
 
@@ -15,7 +15,9 @@ Aladdin 的独立本地开发副本；GitHub 协作以总仓库对应目录为�
 
 ## 执行贡献者流程
 
-实验负责人冻结 commit，并在 Issue 中写明数据路径、模型路径、endpoint、GPU、命令和预期输出位置。贡献者不得静默修改这些值。
+实验负责人提供实验目标和冻结参数。贡献者根据服务器实际环境填写 Python、
+数据、模型、endpoint、GPU 和输出路径，并在结果中记录实际使用值，不得静默
+修改实验参数。
 
 ```bash
 git checkout <frozen-commit>
