@@ -245,8 +245,6 @@ output paths: external paths only
 summary: link or paste the analyzer summary
 ```
 
-执行者只报告运行事实。研究结论、参数调整和新实验由负责人统一决定。
-
 ## 8. 集成管线验证
 
 只有在技术一两阶段完成并单独归档后，才运行集成管线。它从同一项目目录的
