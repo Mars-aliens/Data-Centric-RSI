@@ -62,10 +62,12 @@ execute -> observe feedback -> propose Harness edit -> evaluate candidate
 
 - **README.md：** 安装和实验入口。
 - **服务器手册：** [docs/server-handoff.md](docs/server-handoff.md) 介绍服务器准备、配置、模型适配器和执行顺序。
-- **技术一完整执行指南：** [docs/technical-one-execution-guide.md](docs/technical-one-execution-guide.md) 提供从服务器准备、smoke、正式比较到长程验证的完整命令流程。
 - **协作指南：**
   [docs/contributor-execution-runbook.md](docs/contributor-execution-runbook.md)
   说明贡献者流程、证据包和审查交接。
+- **Issue 模板：**
+  [.github/ISSUE_TEMPLATE/experiment-execution.yml](.github/ISSUE_TEMPLATE/experiment-execution.yml)
+  用于向贡献者分配可复现实验。
 - **报告模板：**
   [docs/run-report-template.md](docs/run-report-template.md)
   记录执行结果和证据链接。
@@ -96,8 +98,7 @@ export PYTHONPATH="$LEGO_ROOT/code:${PYTHONPATH:-}"
 cp "$LEGO_ROOT/code/technologies/technology_one/server_profile.evolution.qwen.example.json" \
    "$LEGO_ROOT/server_profile.evolution.qwen.json"
 
-export POLICY_API_ROOT="http://<DECISION-LLM-HOST>:<PORT>/v1"
-export LEGO_POLICY_API_URL="$POLICY_API_ROOT/chat/completions"
+export LEGO_POLICY_API_URL="http://127.0.0.1:8000/v1/chat/completions"
 bash "$LEGO_ROOT/scripts/check_lego_install.sh"
 MODEL_PATH=/path/to/Qwen2.5-7B-Instruct \
   bash "$LEGO_ROOT/scripts/check_decision_model.sh"
@@ -123,7 +124,7 @@ bash "$LEGO_ROOT/scripts/run_technology_one_evolution_comparison_batch.sh"
 修改协议或实验运行器前请先阅读 `CONTRIBUTING.md`。提案校验、接受规则、数据切分、预算上限或模型版本变更，都需要记录协议说明并重新运行冒烟测试。不要提交私有配置、凭据、数据集、模型检查点、`runs/`、`logs/`、临时文件或生成的归档包。
 
 服务器协作请遵循
-`docs/contributor-execution-runbook.md`，其中说明固定 commit/profile 要求、冒烟测试、正式运行、证据包和结果报告格式。
+`docs/contributor-execution-runbook.md`，其中说明 GitHub Issue 交接、固定 commit/profile 要求、冒烟测试、正式运行、证据包和结果报告格式。仓库还提供 `.github/ISSUE_TEMPLATE/experiment-execution.yml`，用于向贡献者分配可复现实验。
 
 ## 许可证
 

@@ -95,7 +95,7 @@ final_test_unlocked: false
 repository: https://github.com/Mars-aliens/Data-Centric-RSI.git
 commit: <精确commit或tag>
 lego_root: <服务器上的projects/mle-lego绝对路径>
-decision_endpoint: <新服务器上的Decision-LLM地址>/v1/chat/completions
+decision_endpoint: <例如http://127.0.0.1:8000/v1/chat/completions>
 decision_model_id: <model_id>
 decision_model_revision: <revision>
 task_model_path: <服务器上的模型绝对路径>
