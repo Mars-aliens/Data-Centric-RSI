@@ -82,6 +82,11 @@ local_experiments/aladdin/integrated_pipeline/SERVER_HANDOFF.md。
 HelpSteer2 replay、Qwen 下游验证、HH-RLHF 诊断和集成管线的冻结参数位于
 docs/experiment-parameters.md。这些实验的指标不能合并成一个结果。
 
+服务器执行者请按照
+[GitHub 服务器实验执行手册](docs/github-server-experiment-runbook.md)
+运行。该手册从 `projects/aladdin/` 开始，明确技术一 Debug、180 条件主实验、
+48 条件 Qwen 下游验证和结果回报顺序。
+
 ## 主动反馈和下游验证
 
 HelpSteer2 和 HH-RLHF 运行器接收运行者提供的数据集路径，并将结果写入
