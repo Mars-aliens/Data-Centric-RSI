@@ -38,7 +38,8 @@ git rev-parse HEAD
 export LEGO_ROOT="$PWD"
 export TRAIN_PY="$LEGO_ROOT/.venv/bin/python"
 export PYTHONPATH="$LEGO_ROOT/code:${PYTHONPATH:-}"
-export LEGO_POLICY_API_URL="http://127.0.0.1:8000/v1/chat/completions"
+export POLICY_API_ROOT="http://<DECISION-LLM-HOST>:<PORT>/v1"
+export LEGO_POLICY_API_URL="$POLICY_API_ROOT/chat/completions"
 export LEGO_POLICY_TIMEOUT_SECONDS=600
 export CUDA_VISIBLE_DEVICES=<gpu-id>
 export LEGO_TASK_MODEL_DEVICE=cuda
@@ -244,7 +245,8 @@ cp "$LEGO_ROOT/code/technologies/technology_one/server_profile.baseline_matrix.q
 - `task_model` 的本地权重路径存在且是 Issue 指定版本。
 
 ```bash
-export LEGO_POLICY_API_URL="http://127.0.0.1:8000/v1/chat/completions"
+export POLICY_API_ROOT="http://<DECISION-LLM-HOST>:<PORT>/v1"
+export LEGO_POLICY_API_URL="$POLICY_API_ROOT/chat/completions"
 export LEGO_POLICY_TIMEOUT_SECONDS=600
 export CUDA_VISIBLE_DEVICES=<GPU编号>
 export LEGO_TASK_MODEL_DEVICE=cuda
