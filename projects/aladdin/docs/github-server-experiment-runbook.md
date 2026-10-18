@@ -1,7 +1,6 @@
-# GitHub 服务器实验执行手册
+# Aladdin 服务器实验执行说明
 
-本文档只适用于 GitHub 总仓库中的 `projects/aladdin/`。服务器实验应从该
-子项目目录运行，不应从总仓库根目录运行。
+服务器实验从 GitHub 总仓库中的 `projects/aladdin/` 目录运行。
 
 ## 实验顺序
 
@@ -9,13 +8,12 @@
 
 1. 固定 Git commit，完成代码和环境检查。
 2. 运行无 GPU 的 HelpSteer2 技术一 Debug。
-3. Debug 通过后运行技术一正式的 180 条件历史 replay。
+3. Debug 通过后运行技术一正式的 180 条件实验。
 4. 分析 180 条件结果，确认泄漏审计和 `final_test_accessed=false`。
 5. 使用冻结的反馈矩阵运行需要 GPU 的 Qwen LoRA 下游验证，共 48 条件。
-6. 分别报告技术一 replay 和 Qwen 下游结果，不合并成一个指标。
+6. 分别报告技术一和 Qwen 下游结果，不合并成一个指标。
 
-集成管线是独立的工程验证，不能替代上述技术一实验，也不能把它的 smoke
-结果作为生成模型效果结果。
+集成管线是单独的工程验证，结果单独报告。
 
 ## 1. 检出 GitHub 项目
 
@@ -25,21 +23,20 @@
 git clone https://github.com/Mars-aliens/Data-Centric-RSI.git
 cd Data-Centric-RSI/projects/aladdin
 
-# 使用 GitHub main 的最新代码，并记录实际运行 commit。
+# 使用 GitHub main，并记录实际运行 commit。
 git checkout main
 git pull --ff-only origin main
 git status --short
 git rev-parse HEAD
 ```
 
-如果仓库已经存在，执行 `git pull --ff-only origin main` 后再记录
-`git rev-parse HEAD`。实验报告必须包含这个 commit。
+实验报告必须包含 `git rev-parse HEAD` 的结果。
 
 数据集、模型、日志和结果必须放在 `projects/aladdin/` 之外。
 
 ## 2. 安装和代码检查
 
-技术一历史 replay 只需要 CPU Python 环境，不需要 GPU、Transformers、
+技术一主实验只需要 CPU Python 环境，不需要 GPU、Transformers、
 vLLM 或模型 endpoint。
 
 ```bash
@@ -250,9 +247,9 @@ summary: link or paste the analyzer summary
 
 执行者只报告运行事实。研究结论、参数调整和新实验由负责人统一决定。
 
-## 8. 集成管线（独立工程验证）
+## 8. 集成管线验证
 
 只有在技术一两阶段完成并单独归档后，才运行集成管线。它从同一项目目录的
 `local_experiments/aladdin/integrated_pipeline/` 启动，使用
 `server_preflight.sh` 和 `server_run_round.sh`。该运行可以使用 vLLM endpoint，
-但其结果必须单独报告，不能替换技术一 180/48 条件结果。
+其结果与技术一 180/48 条件结果分开报告。

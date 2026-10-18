@@ -50,7 +50,7 @@ python scripts/check_aladdin_install.py
 
 ## 集成管线 smoke test
 
-集成管线可以使用准备好的 JSONL replay 离线运行。数据文件和 requirements
+集成管线可以使用准备好的 JSONL 文件离线运行。数据文件和 requirements
 文件由运行者提供：
 
 ~~~bash
@@ -79,7 +79,7 @@ offline-replay 中已有的数据集标签不属于新的人工反馈。
 完整服务器交接说明位于
 local_experiments/aladdin/integrated_pipeline/SERVER_HANDOFF.md。
 
-HelpSteer2 replay、Qwen 下游验证、HH-RLHF 诊断和集成管线的冻结参数位于
+HelpSteer2 技术一、Qwen 下游验证、HH-RLHF 诊断和集成管线的冻结参数位于
 docs/experiment-parameters.md。这些实验的指标不能合并成一个结果。
 
 服务器执行者请按照
