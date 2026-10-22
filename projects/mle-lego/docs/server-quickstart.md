@@ -18,7 +18,6 @@ python -m pip install --upgrade pip
 
 ```bash
 python -m pip install torch==2.7.1 --index-url <PyTorch选择器给出的CUDA源>
-python -m pip install -r requirements-server.txt
 python -m pip install -r requirements-research.txt
 python -m pip check
 python -m pytest -q
@@ -38,14 +37,14 @@ nvidia-smi
 
 ## 2. 准备数据
 
-下载 HelpSteer2 `nvidia/HelpSteer2` revision `990b2711a36180dd19d9c94b8627844866f8982a`，导出字段：`prompt`、`response`、`helpfulness`、`correctness`、`coherence`、`complexity`、`verbosity`。保存为：
+使用 `requirements-research.txt` 中的 `datasets` 下载 HelpSteer2 `nvidia/HelpSteer2` revision `990b2711a36180dd19d9c94b8627844866f8982a`，导出字段：`prompt`、`response`、`helpfulness`、`correctness`、`coherence`、`complexity`、`verbosity`。保存为：
 
 ```text
 $LEGO_ROOT/data/helpsteer2-train.jsonl
 $LEGO_ROOT/data/helpsteer2-validation.jsonl
 ```
 
-`validation` 是锁定的 final-test，不要提供给模型或候选。生成完整流 manifest：
+`validation` 是锁定的 final-test split；只供可信 runner 做离线汇总，不能提供给 Decision LLM 或候选。生成完整流 manifest：
 
 ```bash
 "$TRAIN_PY" scripts/prepare_long_horizon_task.py \
@@ -55,7 +54,7 @@ $LEGO_ROOT/data/helpsteer2-validation.jsonl
   --stream-seed 17 --groups-per-batch 50 --feedback-delay 2
 ```
 
-确认 development 数据可用且没有重复 prompt group，保存 manifest SHA256。数据审计完成后按执行手册先做 4 周期 smoke。
+确认 development 数据可用且没有重复 prompt group，保存 manifest SHA256。数据审计通过后继续配置 Task Model 并运行固定流水线 smoke；T1 候选隔离 smoke 在后续执行手册中运行。
 
 ## 3. 配置 Task Model
 
@@ -72,17 +71,19 @@ export CUDA_VISIBLE_DEVICES=<stable使用的GPU编号>
 
 ## 4. 跑固定流水线 smoke
 
+这一步只验证真实数据、Task Model 预测、延迟反馈释放和 parent-checkpoint 续训，不包含 T1 候选或 Docker 隔离。T1 的 stable/candidate 配对 smoke 在下一份执行手册中另行运行，目的不同。
+
 ```bash
 "$TRAIN_PY" scripts/run_long_horizon_qwen.py \
   --train-jsonl "$LEGO_ROOT/data/helpsteer2-train.jsonl" \
   --validation-jsonl "$LEGO_ROOT/data/helpsteer2-validation.jsonl" \
   --config-json "$LEGO_ROOT/server-private/task-model-smoke.json" \
-  --output-dir "$LEGO_ROOT/runs/t1-pilot/b0-seed-17" \
+  --output-dir "$LEGO_ROOT/runs/baseline-smoke/b0-seed-17" \
   --run-id b0-seed-17 --seed 17 --stream-seed 17 \
   --groups-per-batch 50 --feedback-delay 2 --max-batches 4
 ```
 
-通过条件：`status=complete`、`completed_batches=4`，第 4 批使用到期反馈训练，`final_test_used=false`。失败就停止排查。此步骤是部署 smoke，之后再运行 10～20 周期 pilot。
+通过条件：`status=complete`、`completed_batches=4`，第 4 批使用到期反馈训练，`final_test_used=false`。失败就停止排查。此步骤只验证固定流水线，不是 T1 候选隔离测试。
 
 ## 5. 配置 Decision LLM 并做 API smoke
 
@@ -99,21 +100,10 @@ export LEGO_POLICY_TIMEOUT_SECONDS=600
 
 通过条件：`status=ok`、`schema_valid=true`。密钥不要写进 JSON 或提交 Git。
 
-## 6. 跑 T1 隔离 pilot
+## 6. 转入技术一执行手册
 
-按[技术一安全自进化执行手册](technology-one-safe-evolution-runbook.md)配置 Docker digest、候选 bundle、资源限制和另一张 GPU/MIG。依次完成：
+完成本文件第 1～5 步后，环境、数据、Task Model、固定流水线 smoke 和 Decision LLM API smoke 已准备好。第 4 步的结果位于 `$LEGO_ROOT/runs/baseline-smoke/b0-seed-17/`。接下来直接阅读并执行[技术一执行手册](technology-one-safe-evolution-runbook.md)，完成 T1 clean smoke 的 `4/4`。
 
-1. `--preflight-only` 预检；
-2. 4 批无故障 `T1-shadow-clean` smoke；
-3. 独立 smoke run，在 batch 3 注入 `invalid_protocol`；
-4. 批次边界中断并恢复。
-
-以上 smoke 全部通过后，按协议配置 10～20 周期 pilot。pilot 结果通过审查后，再决定是否进入正式规模实验。
-
-通过条件：clean 两个分支均完成 4/4；故障候选停止而 stable 完成 4/4 且 checkpoint 未改变；恢复没有重复批次或反馈。每项使用新的 run ID 和输出目录。
-
-## 7. Pilot
-
-4 周期 smoke 全部通过后，按[技术一执行手册的 pilot 命令](technology-one-safe-evolution-runbook.md#10-20-周期-t1-pilot-命令)运行 10 或 20 周期。记录稳定分支完成率、候选隔离、恢复结果、模型/数据版本和资源成本。审查 pilot 结果后再确定正式实验设计与运行规模；不要提前启动长周期正式实验。
+执行手册执行到 T1 clean smoke 的 `4/4` 后停止。检查 stable/candidate 状态、反馈释放、checkpoint 和 `final_test_used=false`，确认无误后再等待后续安排。
 
 运行日志、manifest、summary、状态文件和配置哈希保存在 `runs/`；不要把数据、模型、checkpoint、密钥或私有配置提交到 Git。
