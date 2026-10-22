@@ -37,11 +37,42 @@ nvidia-smi
 
 ## 2. 准备数据
 
-使用 `requirements-research.txt` 中的 `datasets` 下载 HelpSteer2 `nvidia/HelpSteer2` revision `990b2711a36180dd19d9c94b8627844866f8982a`，导出字段：`prompt`、`response`、`helpfulness`、`correctness`、`coherence`、`complexity`、`verbosity`。保存为：
+下载固定 revision，并导出 runner 要求的字段：
 
-```text
-$LEGO_ROOT/data/helpsteer2-train.jsonl
-$LEGO_ROOT/data/helpsteer2-validation.jsonl
+```bash
+"$TRAIN_PY" - <<'PY'
+import json
+from pathlib import Path
+
+from datasets import load_dataset
+
+dataset_id = "nvidia/HelpSteer2"
+revision = "990b2711a36180dd19d9c94b8627844866f8982a"
+fields = (
+    "prompt", "response", "helpfulness", "correctness", "coherence",
+    "complexity", "verbosity",
+)
+outputs = {
+    "train": Path("data/helpsteer2-train.jsonl"),
+    "validation": Path("data/helpsteer2-validation.jsonl"),
+}
+
+for split, path in outputs.items():
+    dataset = load_dataset(dataset_id, revision=revision, split=split)
+    missing = set(fields) - set(dataset.column_names)
+    if missing:
+        raise ValueError(f"{split} is missing columns: {sorted(missing)}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    count = 0
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for row in dataset:
+            item = {field: row[field] for field in fields}
+            handle.write(json.dumps(item, ensure_ascii=False) + "\n")
+            count += 1
+    if count == 0:
+        raise ValueError(f"{split} is empty")
+    print(f"{split}: {count} rows -> {path}")
+PY
 ```
 
 `validation` 是锁定的 final-test split；只供可信 runner 做离线汇总，不能提供给 Decision LLM 或候选。生成完整流 manifest：

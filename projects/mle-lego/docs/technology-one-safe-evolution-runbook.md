@@ -69,16 +69,49 @@ export T1_OUTPUT="$LEGO_ROOT/runs/t1-smoke/$T1_RUN_ID"
 
 ## 3. 检查并停止
 
-检查 `$T1_OUTPUT/stable/summary.json`：
+检查 `$T1_OUTPUT/stable/summary.json`。以下命令逐项核验 stable 完成 4 批、candidate 每批均通过隔离门、延迟反馈已释放、candidate 用反馈训练并保留自己的 checkpoint，且没有使用 held-out/final-test：
 
-```text
-status = complete
-completed_batches = 4
-target_batches = 4
-candidate 完成 4/4
-candidate 使用了已释放反馈并保存了自己的 checkpoint
-held_out_used = false
-final_test_used = false
+```bash
+"$TRAIN_PY" - "$T1_OUTPUT/stable/summary.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    summary = json.load(handle)
+
+candidate = summary.get("candidate_history", [])
+batches = summary.get("batch_history", [])
+candidate_indexes = sorted(item.get("batch_index") for item in candidate)
+last_candidate = next(
+    (item for item in candidate if item.get("batch_index") == 3), {}
+)
+checks = {
+    "stable_complete_4_of_4": (
+        summary.get("status") == "complete"
+        and summary.get("completed_batches") == 4
+        and summary.get("target_batches") == 4
+    ),
+    "candidate_complete_4_of_4": (
+        candidate_indexes == [0, 1, 2, 3]
+        and all(item.get("status") == "eligible_for_observation" for item in candidate)
+    ),
+    "delayed_feedback_released": any(
+        batch.get("released_feedback_ids") for batch in batches
+    ),
+    "candidate_trained_and_retained_checkpoint": (
+        last_candidate.get("cost", {}).get("training_steps", 0) > 0
+        and last_candidate.get("candidate_checkpoint_retained") is True
+    ),
+    "held_out_not_used": summary.get("held_out_used") is False,
+    "final_test_not_used": summary.get("final_test_used") is False,
+}
+
+for name, passed in checks.items():
+    print(f"{name}: {'PASS' if passed else 'FAIL'}")
+if not all(checks.values()):
+    raise SystemExit("T1 clean smoke verification failed; stop and inspect the run artifacts.")
+print("T1 clean smoke verification: PASS")
+PY
 ```
 
 以上条件全部满足后，本阶段完成。
