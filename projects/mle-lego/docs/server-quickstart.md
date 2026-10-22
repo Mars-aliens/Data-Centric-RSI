@@ -114,6 +114,6 @@ export LEGO_POLICY_TIMEOUT_SECONDS=600
 
 ## 7. Pilot
 
-4 周期 smoke 全部通过后运行 10～20 周期 pilot。记录稳定分支完成率、候选隔离、恢复结果、模型/数据版本和资源成本。审查 pilot 结果后再确定正式实验设计与运行规模；不要提前启动长周期正式实验。
+4 周期 smoke 全部通过后，按[技术一执行手册的 pilot 命令](technology-one-safe-evolution-runbook.md#10-20-周期-t1-pilot-命令)运行 10 或 20 周期。记录稳定分支完成率、候选隔离、恢复结果、模型/数据版本和资源成本。审查 pilot 结果后再确定正式实验设计与运行规模；不要提前启动长周期正式实验。
 
 运行日志、manifest、summary、状态文件和配置哈希保存在 `runs/`；不要把数据、模型、checkpoint、密钥或私有配置提交到 Git。

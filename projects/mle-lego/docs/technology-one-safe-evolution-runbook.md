@@ -265,6 +265,27 @@ export LEGO_TASK_MODEL_DEVICE=cuda
 
 确认 stable 和 candidate 都完成 4 周期，candidate 在第 4 周期收到已释放反馈，并保留候选自己的 checkpoint。随后为独立候选配置故障映射 `"fault_injection": {"3": "invalid_protocol"}`，使用全新的 candidate、run ID 和 output directory 重跑。预期候选被拒绝并停止，stable 仍完成 `4/4`，stable checkpoint 前后哈希一致。Smoke 通过后再运行 10～20 周期 pilot，并依据结果决定后续实验规模。
 
+### 10～20 周期 T1 pilot 命令
+
+先复制 Task Model 配置为 `task-model-pilot.json`，保留 smoke 使用的模型、Tokenizer 和 LoRA 参数，将 `max_steps` 设为 `100`（与候选配置的 `max_training_steps_per_batch` 一致）。使用 `propose_t1_candidate.py` 生成并审查真实候选 bundle，将其路径、候选 ID 和已固定的镜像/GPU 配置写入 `t1-candidate-pilot.json`。Pilot 使用新的输出目录；下面以 10 周期为例，运行 20 周期时把 `--max-batches 10` 改成 `--max-batches 20`，并相应修改 run ID 与输出目录。
+
+```bash
+export PILOT_BATCHES=10
+export PILOT_RUN_ID="t1-pilot-seed-17-${PILOT_BATCHES}cycles"
+
+"$TRAIN_PY" scripts/run_long_horizon_t1_qwen.py \
+  --train-jsonl "$LEGO_ROOT/data/helpsteer2-train.jsonl" \
+  --validation-jsonl "$LEGO_ROOT/data/helpsteer2-validation.jsonl" \
+  --task-config-json "$LEGO_ROOT/server-private/task-model-pilot.json" \
+  --candidate-config-json "$LEGO_ROOT/server-private/t1-candidate-pilot.json" \
+  --output-dir "$LEGO_ROOT/runs/t1-pilot/$PILOT_RUN_ID" \
+  --run-id "$PILOT_RUN_ID" \
+  --seed 17 --stream-seed 17 --groups-per-batch 50 --feedback-delay 2 \
+  --max-batches "$PILOT_BATCHES"
+```
+
+运行前确认 stable 与 candidate 使用不同物理 GPU/MIG，candidate bundle 已通过 proposal/bundle 校验，stable/candidate 从同一 Task Model revision 开始，并已记录候选训练配置与资源预算。候选可包含已审查的训练参数修改。结束后核对 `summary.json` 的批次数、stable/candidate 状态、故障与恢复记录、checkpoint 来源、成本，以及 `held_out_used=false`、`final_test_used=false`。该命令是单候选 pilot，不是正式多随机种子统计实验；周期性提案和多候选恢复完成后，再冻结正式协议和命令。
+
 ## 7. 故障注入与判读
 
 故障注入通过候选配置中的 `fault_injection` 设置 batch index 和故障类型。至少分别测试超时、非零退出、非法 JSON/协议、错误父版本、漏预测、非法标签、报告预算超限和写只读父 checkpoint。每种故障使用独立 run/output dir，避免故障类型互相混淆；正式效能比较不启用故障注入。
