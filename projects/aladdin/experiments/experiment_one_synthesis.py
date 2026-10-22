@@ -1,4 +1,4 @@
-"""Run the complete static synthesis comparison (experiment 1A)."""
+"""Run the data-synthesis comparison for experiment one."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from typing import Any
 
 from experiments.evaluation.qwen_sft import (
     QwenSFTConfig,
-    build_1a_training_records,
+    build_synthesis_training_records,
     train_and_evaluate,
 )
 from experiments.synthesis.generator import OpenAICompatibleGenerator
@@ -27,6 +27,12 @@ PRISM_REPOSITORY = "HannahRoseKirk/prism-alignment"
 PRISM_REVISION = "18ab5cfb37456f4ec8cbc00212ce54cf7b1239f6"
 MODEL_ID = "Qwen/Qwen3-8B"
 MODEL_REVISION = "b968826d9c46dd6066d109eabc6255188de91218"
+FEEDBACK_BOUNDARY = {
+    "stage": "experiment-one-data-synthesis",
+    "new_human_feedback_collected": False,
+    "human_feedback_used_for_generation_or_selection": False,
+    "development_labels_role": "offline_outcome_evaluation_only",
+}
 
 
 def _jsonl(path: Path) -> list[dict[str, Any]]:
@@ -96,19 +102,19 @@ def select_generation_parents(
 
 def _load_development(data_path: Path, labels_path: Path | None) -> list[dict[str, Any]]:
     if "final_test" in data_path.name.lower() or "final-test" in str(data_path).lower():
-        raise ValueError("experiment 1A cannot read final_test data")
+        raise ValueError("experiment one data synthesis cannot read final_test data")
     if labels_path is None:
-        raise ValueError("experiment 1A requires the development label sidecar")
+        raise ValueError("experiment one data synthesis requires the development label sidecar")
     records = _jsonl(data_path)
     if any(row.get("split") == "final_test" for row in records):
         raise ValueError("development data contains final_test records")
     if any(row.get("split") != "development" for row in records):
-        raise ValueError("experiment 1A accepts only records marked split=development")
+        raise ValueError("experiment one data synthesis accepts only records marked split=development")
     record_ids = [str(row.get("record_id") or "") for row in records]
     if not all(record_ids) or len(record_ids) != len(set(record_ids)):
         raise ValueError("development records must have unique, non-empty record_id values")
     if "final_test" in labels_path.name.lower() or "final-test" in str(labels_path).lower():
-        raise ValueError("experiment 1A cannot read final_test labels")
+        raise ValueError("experiment one data synthesis cannot read final_test labels")
     label_rows = _jsonl(labels_path)
     labels = {str(row["record_id"]): row for row in label_rows if row.get("record_id")}
     if len(labels) != len(label_rows):
@@ -290,9 +296,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if len(args.seeds) < 2 or len(set(args.seeds)) != len(args.seeds):
         raise ValueError("use at least two unique seeds for paired strategy comparisons")
     if len(args.strategies) < 2 or len(set(args.strategies)) != len(args.strategies):
-        raise ValueError("formal experiment 1A requires at least two unique strategies")
+        raise ValueError("formal experiment one data synthesis requires at least two unique strategies")
     if "seed-only" not in args.strategies:
-        raise ValueError("formal experiment 1A requires the seed-only baseline")
+        raise ValueError("formal experiment one data synthesis requires the seed-only baseline")
     unknown = set(args.strategies) - {"seed-only", "fixed-prompt", "self-instruct", "evol-instruct"}
     if unknown:
         raise ValueError(f"unknown synthesis strategies: {sorted(unknown)}")
@@ -316,7 +322,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if split_manifest.get("status") != "prepared":
         raise ValueError("prepared dataset manifest is not marked status=prepared")
     if split_manifest.get("dataset") != PRISM_REPOSITORY:
-        raise ValueError("experiment 1A expects the pinned PRISM dataset")
+        raise ValueError("experiment one data synthesis expects the pinned PRISM dataset")
     if split_manifest.get("revision") != PRISM_REVISION:
         raise ValueError("prepared PRISM data does not match the pinned dataset revision")
     seed_groups = {str(row.get("source_group_id") or "") for row in seed_records}
@@ -331,7 +337,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     run_document = {
         "status": "running",
         "run_id": run_id,
-        "protocol": "aladdin-experiment-1a-v1",
+        "protocol": "aladdin-experiment-one-data-synthesis-v1",
+        "feedback_boundary": FEEDBACK_BOUNDARY,
         "configuration": config_snapshot,
         "runtime": {
             "python": sys.version,
@@ -353,7 +360,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             candidates, generation = _run_synthesis(
                 run_seeds, strategy, args, strategy_dir / "candidates.jsonl", run_seed
             )
-            train_records = build_1a_training_records(
+            train_records = build_synthesis_training_records(
                 run_seeds,
                 candidates,
                 strategy=strategy,
@@ -424,7 +431,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     summary = {
         "status": "completed",
         "run_id": run_id,
-        "protocol": "aladdin-experiment-1a-v1",
+        "protocol": "aladdin-experiment-one-data-synthesis-v1",
+        "feedback_boundary": FEEDBACK_BOUNDARY,
         "data": {
             "seed_path": seed_path.name,
             "seed_sha256": _sha256(seed_path),
@@ -521,23 +529,23 @@ def validate_args(args: argparse.Namespace) -> None:
     if invalid:
         raise ValueError(f"unknown synthesis strategies: {sorted(invalid)}")
     if len(args.strategies) < 2 or len(set(args.strategies)) != len(args.strategies):
-        raise ValueError("formal experiment 1A requires at least two unique strategies")
+        raise ValueError("formal experiment one data synthesis requires at least two unique strategies")
     if "seed-only" not in args.strategies:
-        raise ValueError("formal experiment 1A requires the seed-only baseline")
+        raise ValueError("formal experiment one data synthesis requires the seed-only baseline")
     if len(args.seeds) < 2 or len(set(args.seeds)) != len(args.seeds):
         raise ValueError("use at least two unique seeds for paired strategy comparisons")
     if "evol-instruct" in args.strategies and not args.evol_task_compatible:
         raise ValueError("Evol-Instruct requires --evol-task-compatible after task compatibility review")
     if args.model != MODEL_ID:
-        raise ValueError(f"experiment 1A generation model is frozen to {MODEL_ID}")
+        raise ValueError(f"experiment one data synthesis generation model is frozen to {MODEL_ID}")
     base_model = str(args.base_model)
     if base_model != MODEL_ID and MODEL_REVISION not in base_model:
         raise ValueError(
-            "experiment 1A task model must be the frozen Hugging Face ID or a "
+            "experiment one data synthesis task model must be the frozen Hugging Face ID or a "
             f"local snapshot containing revision {MODEL_REVISION}"
         )
     if args.model_revision != MODEL_REVISION:
-        raise ValueError(f"experiment 1A model revision is frozen to {MODEL_REVISION}")
+        raise ValueError(f"experiment one data synthesis model revision is frozen to {MODEL_REVISION}")
     if not 0 < args.synthetic_train_records < args.train_records:
         raise ValueError("synthetic-train-records must be positive and less than train-records")
 

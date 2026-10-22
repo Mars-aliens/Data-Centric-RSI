@@ -5,23 +5,23 @@ Aladdin 研究面向生成式任务的数据中心化递归改进流程，重点
 ## 当前研究方向
 
 ```text
-少量种子样本
-  -> 合成候选数据
-  -> 清洗并检查质量
-  -> 选择有代表性的样本，收集人工反馈
-  -> 根据反馈调整下一轮的数据合成与清洗策略
-  -> 进入下一轮并评估下游任务表现
+少量固定种子样本
+  -> 阶段一：合成候选数据（不请求人工反馈）
+  -> 阶段二：自动清洗候选（不请求人工反馈）
+  -> 阶段三：选择值得评审的候选并收集人工反馈
+  -> 用反馈调整下一轮的合成和清洗策略
+  -> 下一轮
 ```
 
-三个数据操作由同一个外层 RSI 循环连接。
+人工反馈只在阶段三进入系统。阶段一、二不让人逐条判断候选是否“好”；阶段三挑选适合优先评审、能帮助澄清要求或影响后续决策的候选。这里的“好”指反馈价值高，不表示系统已判定内容质量合格。公开数据集已有的标签只用于固定的离线评价或查询策略回放，不等于本轮新收集的人工反馈，也不参与候选生成过程。三个数据操作由同一个外层 RSI 循环连接。
 
 当前方向已有可行性试验方案，但还没有确认性结果，也尚未实现为完整的端到端系统。方案初步确定了数据集、对照方法、数据划分和预算控制；正式实验前仍须通过数据访问、隐私、模型版本和数据泄漏检查。
 
 三阶段候选对照与系统对照见 `docs/baseline-shortlist.md`。这些是可行性研究建议，不是已经验证的结论。完整试验方案见 `docs/feasibility-pilot-protocol.md`。
 
-实验一 1A 已有静态合成对照与 Qwen LoRA 下游评价 runner，默认比较 `seed-only`、固定提示词和改造版 Self-Instruct；任务适用并经确认后可加入改造版 Evol-Instruct。生成模型和下游任务模型统一固定为 `Qwen/Qwen3-8B`，revision 为 `b968826d9c46dd6066d109eabc6255188de91218`，并关闭 thinking 模式。服务器正式运行命令见 `docs/server-quickstart.md`，方法和评价定义见 `docs/experiment-one-synthesis-baselines.md`。确定性测试不调用模型，也不能作为合成质量证据。
+实验一的数据合成环节已有静态对照与 Qwen LoRA 下游评价 runner，默认比较 `seed-only`、固定提示词和改造版 Self-Instruct；任务适用并经确认后可加入改造版 Evol-Instruct。本环节不请求新人工反馈、不按人工意见筛候选；development 中已有的 PRISM 标签只用于统一的离线结果评价。生成模型和下游任务模型统一固定为 `Qwen/Qwen3-8B`，revision 为 `b968826d9c46dd6066d109eabc6255188de91218`，并关闭 thinking 模式。服务器正式运行命令见 `docs/server-quickstart.md`，方法和评价定义见 `docs/experiment-one-data-synthesis.md`。确定性测试不调用模型，也不能作为合成质量证据。
 
-协作者的环境配置、数据准备、API 预检、实验执行顺序和当前实现状态见 `docs/reproduction-runbook.md`。各实验阶段的目标模块、数据格式、算法接口、开发顺序和测试门槛见 `docs/implementation-design.md`。实验 1B、清洗、反馈选择及完整多轮 RSI 仍处于待实现阶段。
+协作者的环境配置、数据准备、API 预检、实验执行顺序和当前实现状态见 `docs/reproduction-runbook.md`。各实验阶段的目标模块、数据格式、算法接口、开发顺序和测试门槛见 `docs/implementation-design.md`。数据清洗、反馈选择、反馈驱动的递归更新及完整多轮 RSI 仍处于待实现阶段。
 
 Linux 服务器按步骤执行的快速说明见 `docs/server-quickstart.md`。
 
@@ -33,13 +33,13 @@ Linux 服务器按步骤执行的快速说明见 `docs/server-quickstart.md`。
 - `CONTRIBUTING.md`：协作约定。
 - `docs/baseline-shortlist.md`：三阶段对照及系统对照建议。
 - `docs/feasibility-pilot-protocol.md`：当前可行性试验方案、数据集和预算决策。
-- `docs/experiment-one-synthesis-baselines.md`：实验一合成对照的实现状态。
+- `docs/experiment-one-data-synthesis.md`：实验一数据合成对照及运行步骤。
 - `docs/reproduction-runbook.md`：环境、数据、实验执行顺序及 GitHub 路径说明。
 - `docs/server-quickstart.md`：Linux 服务器安装、数据准备、API 预检和正式实验流程说明。
 - `docs/implementation-design.md`：目标代码结构、数据契约、算法和测试门槛。
 - `baselines/synthesis/UPSTREAMS.md`：上游仓库版本、许可和改造说明。
 - `configs/datasets.json`：固定的数据集版本、文件和使用限制。
-- `scripts/`：数据下载、准备和审计脚本。
+- `scripts/`：数据下载、准备、审计和固定版本 baseline 获取脚本。
 - `experiments/synthesis/`：当前已实现的数据合成方法和命令行程序。
 - `tests/`：不依赖 GPU 或在线模型的确定性测试。
 

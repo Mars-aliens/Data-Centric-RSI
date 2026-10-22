@@ -4,13 +4,13 @@ from argparse import Namespace
 import pytest
 
 from experiments.evaluation.qwen_sft import (
-    build_1a_training_records,
+    build_synthesis_training_records,
     build_training_schedule,
     format_prompt,
     pairwise_preference_metrics,
 )
-from experiments import experiment_1a
-from experiments.experiment_1a import _load_development, select_seed_groups
+from experiments import experiment_one_synthesis
+from experiments.experiment_one_synthesis import _load_development, select_seed_groups
 
 
 def test_seed_group_selection_is_deterministic_and_disjoint():
@@ -32,10 +32,10 @@ def test_training_schedule_equalizes_count_without_mutating_records():
     assert rows == [{"record_id": "a"}, {"record_id": "b"}]
 
 
-def test_1a_training_records_keep_fixed_seed_and_synthetic_slots():
+def test_synthesis_training_records_keep_fixed_seed_and_synthetic_slots():
     seeds = [{"record_id": "s1"}, {"record_id": "s2"}]
     candidates = [{"record_id": "c1"}, {"record_id": "c2"}]
-    rows = build_1a_training_records(
+    rows = build_synthesis_training_records(
         seeds,
         candidates,
         strategy="fixed-prompt",
@@ -130,7 +130,7 @@ def test_generation_stops_after_shared_token_budget_is_reached(tmp_path, monkeyp
             self.usage.completion_tokens += 2
             return json.dumps({"input": f"new {self.usage.requests}", "output": "response"})
 
-    monkeypatch.setattr(experiment_1a, "OpenAICompatibleGenerator", FakeGenerator)
+    monkeypatch.setattr(experiment_one_synthesis, "OpenAICompatibleGenerator", FakeGenerator)
     args = Namespace(
         endpoint="http://localhost/v1/chat/completions",
         model="test-model",
@@ -142,7 +142,7 @@ def test_generation_stops_after_shared_token_budget_is_reached(tmp_path, monkeyp
         temperature=0.0,
     )
     seeds = [{"record_id": "s", "input": "seed", "output": "answer", "source_group_id": "g"}]
-    rows, manifest = experiment_1a._run_synthesis(seeds, "fixed-prompt", args, tmp_path / "rows.jsonl", 17)
+    rows, manifest = experiment_one_synthesis._run_synthesis(seeds, "fixed-prompt", args, tmp_path / "rows.jsonl", 17)
     assert len(rows) == 1
     assert manifest["generation_tokens_used"] == 5
     assert manifest["generation_budget_overshoot_tokens"] == 0
@@ -173,7 +173,7 @@ def test_runner_uses_seed_and_development_only_and_writes_summary(tmp_path, monk
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        experiment_1a,
+        experiment_one_synthesis,
         "train_and_evaluate",
         lambda train, dev, config: {
             "status": "completed",
@@ -185,23 +185,23 @@ def test_runner_uses_seed_and_development_only_and_writes_summary(tmp_path, monk
         },
     )
     monkeypatch.setattr(
-        experiment_1a,
+        experiment_one_synthesis,
         "_run_synthesis",
         lambda seeds, strategy, args, output, run_seed: (
-            experiment_1a.synthesize(seeds, strategy="seed-only", count=0),
+            experiment_one_synthesis.synthesize(seeds, strategy="seed-only", count=0),
             {"candidate_count": len(seeds), "generation_tokens_used": 0},
         ) if strategy == "seed-only" else (
             [{**seeds[0], "record_id": f"c-{run_seed}", "synthesis_strategy": strategy}],
             {"candidate_count": 1, "generation_tokens_used": 5},
         ),
     )
-    args = experiment_1a.build_parser().parse_args(
+    args = experiment_one_synthesis.build_parser().parse_args(
         [
             "--seed-data", str(seed_path),
             "--development-data", str(dev_path),
             "--development-labels", str(labels_path),
             "--output", str(tmp_path / "out"),
-            "--base-model", experiment_1a.MODEL_ID,
+            "--base-model", experiment_one_synthesis.MODEL_ID,
             "--strategies", "seed-only", "fixed-prompt",
             "--seeds", "17", "23",
             "--seed-group-limit", "1",
@@ -211,8 +211,11 @@ def test_runner_uses_seed_and_development_only_and_writes_summary(tmp_path, monk
             "--development-group-limit", "1",
         ]
     )
-    result = experiment_1a.run(args)
+    result = experiment_one_synthesis.run(args)
     assert result["data"]["final_test_accessed"] is False
+    assert result["feedback_boundary"]["new_human_feedback_collected"] is False
+    assert result["feedback_boundary"]["human_feedback_used_for_generation_or_selection"] is False
+    assert result["feedback_boundary"]["development_labels_role"] == "offline_outcome_evaluation_only"
     assert len(result["results"]) == 4
     assert all(row["training"]["training_examples"] == 2 for row in result["results"])
     assert (tmp_path / "out" / "result.json").is_file()
@@ -224,33 +227,33 @@ def test_development_sampling_keeps_whole_source_groups():
         {"source_group_id": "a", "record_id": "a2"},
         {"source_group_id": "b", "record_id": "b1"},
     ]
-    sampled = experiment_1a.select_development_groups(rows, 1, 101)
+    sampled = experiment_one_synthesis.select_development_groups(rows, 1, 101)
     assert len({row["source_group_id"] for row in sampled}) == 1
     assert len(sampled) in (1, 2)
 
 
 def test_formal_model_id_and_revision_are_frozen():
-    args = experiment_1a.build_parser().parse_args(
+    args = experiment_one_synthesis.build_parser().parse_args(
         [
             "--seed-data", "seed.jsonl",
             "--development-data", "development.jsonl",
             "--development-labels", "labels.jsonl",
             "--output", "run",
-            "--base-model", experiment_1a.MODEL_ID,
+            "--base-model", experiment_one_synthesis.MODEL_ID,
         ]
     )
-    experiment_1a.validate_args(args)
-    assert args.model == experiment_1a.MODEL_ID
-    assert args.model_revision == experiment_1a.MODEL_REVISION
+    experiment_one_synthesis.validate_args(args)
+    assert args.model == experiment_one_synthesis.MODEL_ID
+    assert args.model_revision == experiment_one_synthesis.MODEL_REVISION
 
     args.model = "some-other-model"
     with pytest.raises(ValueError, match="generation model is frozen"):
-        experiment_1a.validate_args(args)
+        experiment_one_synthesis.validate_args(args)
 
-    args.model = experiment_1a.MODEL_ID
+    args.model = experiment_one_synthesis.MODEL_ID
     args.base_model = "some-other-model"
     with pytest.raises(ValueError, match="frozen Hugging Face ID"):
-        experiment_1a.validate_args(args)
+        experiment_one_synthesis.validate_args(args)
 
-    args.base_model = f"/models/snapshots/{experiment_1a.MODEL_REVISION}"
-    experiment_1a.validate_args(args)
+    args.base_model = f"/models/snapshots/{experiment_one_synthesis.MODEL_REVISION}"
+    experiment_one_synthesis.validate_args(args)

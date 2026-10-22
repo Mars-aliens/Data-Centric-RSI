@@ -7,7 +7,7 @@ $Sources = @(
         Name = "self-instruct-upstream"
         Url = "https://github.com/yizhongw/self-instruct.git"
         Revision = "0b26ccaa415992100fa32df62d41b994cf928e23"
-        SparsePatterns = @("/README.md", "/LICENSE", "/requirements.txt", "/self_instruct/")
+        SparsePatterns = @("/README.md", "/LICENSE", "/requirements.txt", "/scripts/", "/self_instruct/")
     },
     @{
         Name = "wizardlm-upstream"

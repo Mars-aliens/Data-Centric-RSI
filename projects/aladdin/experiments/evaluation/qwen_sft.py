@@ -114,7 +114,7 @@ def build_training_schedule(
     return selected
 
 
-def build_1a_training_records(
+def build_synthesis_training_records(
     seeds: list[dict[str, Any]],
     candidates: list[dict[str, Any]],
     *,
@@ -307,7 +307,7 @@ def train_and_evaluate(
 
     started = time.monotonic()
     if config.require_cuda and not torch.cuda.is_available():
-        raise RuntimeError("experiment 1A Qwen training requires CUDA; select a GPU or explicitly allow CPU")
+        raise RuntimeError("experiment one Qwen training requires CUDA; select a GPU or explicitly allow CPU")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dtype = torch.bfloat16 if device.type == "cuda" and torch.cuda.is_bf16_supported() else torch.float32
     tokenizer = AutoTokenizer.from_pretrained(

@@ -1,4 +1,4 @@
-"""Print a compact report for an experiment 1A result.json."""
+"""Print a compact report for an experiment one data-synthesis result."""
 
 from __future__ import annotations
 

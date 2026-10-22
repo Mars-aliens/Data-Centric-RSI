@@ -75,7 +75,7 @@ def run_experiment(args: argparse.Namespace) -> dict[str, Any]:
     usage = getattr(generator, "usage", None)
     manifest = {
         "status": "completed",
-        "protocol": "aladdin-synthesis-experiment-1a-v1",
+        "protocol": "aladdin-experiment-one-data-synthesis-v1",
         "strategy": args.strategy,
         "seed": args.seed,
         "input_path_name": input_path.name,

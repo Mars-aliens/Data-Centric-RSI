@@ -1,6 +1,8 @@
-# 实验一（1A）运行步骤
+# 实验一：数据合成运行步骤
 
 先完成 [`服务器配置步骤`](server-quickstart.md)第 1～3 步。以下命令在 Linux 项目目录中执行。
+
+本环节比较固定 seed、固定提示词合成和改造版 Self-Instruct（兼容时可另跑改造版 Evol-Instruct）。本阶段不请求人工反馈、不让人逐条判断候选、也不根据人工意见筛选生成数据。命令中使用的 PRISM development 标签是预先存在的离线评价数据，只在训练后计算结果指标；它不会提供给合成器作为反馈。论文 baseline 来源、固定上游 commit 和“项目适配”与“原论文复现”的区别见 [`baselines/synthesis/UPSTREAMS.md`](../baselines/synthesis/UPSTREAMS.md)。
 
 ## 1. 设置模型、数据和输出路径
 
@@ -20,7 +22,7 @@ export DEV_DATA="$ALADDIN_ROOT/data/processed/prism/development.jsonl"
 export DEV_LABELS="$ALADDIN_ROOT/data/processed/prism/labels/development-labels.jsonl"
 
 export BASE_MODEL="Qwen/Qwen3-8B"
-export RUN="$ALADDIN_ROOT/runs/experiment-1a-prism-$(date +%Y%m%d-%H%M%S)"
+export RUN="$ALADDIN_ROOT/runs/experiment-one-data-synthesis-prism-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$RUN"
 ```
 
@@ -57,7 +59,7 @@ PY
 ## 3. 运行完整实验矩阵
 
 ```bash
-"$PYTHON_BIN" -u -m experiments.experiment_1a \
+"$PYTHON_BIN" -u -m experiments.experiment_one_synthesis \
   --seed-data "$SEED_DATA" \
   --development-data "$DEV_DATA" \
   --development-labels "$DEV_LABELS" \
@@ -93,7 +95,7 @@ PY
 ## 4. 汇总结果
 
 ```bash
-"$PYTHON_BIN" -m scripts.analyze_experiment_1a "$RUN/result.json" \
+"$PYTHON_BIN" -m scripts.analyze_experiment_one_synthesis "$RUN/result.json" \
   | tee "$RUN/summary.txt"
 ```
 

@@ -1,6 +1,6 @@
 # Aladdin 实现设计
 
-本文将当前实验方案转化为代码层面的实现计划。文中会区分已经存在的模块与待实现模块，避免把设计写成仿佛已经可运行。当前可运行部分包括数据集工具、`experiments/experiment_1a.py` 中的静态合成对照 runner，以及 Qwen LoRA 训练和 development 评价；实验 1B、清洗、反馈选择和 RSI controller 仍是后续开发目标。
+本文将当前实验方案转化为代码层面的实现计划。文中会区分已经存在的模块与待实现模块，避免把设计写成仿佛已经可运行。当前可运行部分包括数据集工具、`experiments/experiment_one_synthesis.py` 中的静态合成对照 runner，以及 Qwen LoRA 训练和 development 评价；递归更新、清洗、反馈选择和 RSI controller 仍是后续开发目标。
 
 本项目在公开 monorepo 中的路径为 `projects/aladdin/`。以下路径均相对于该目录。
 
@@ -18,6 +18,8 @@ seed 样本
 ```
 
 Controller 负责轮次顺序、预算、版本 ID 和审计日志。每个阶段不能访问属于后续阶段的字段。尤其是 selector 只能接收候选内容和可见特征，不能读取隐藏标签；只有查询被选中后，才由标签存储释放对应反馈。开发和策略更新期间，controller 不加载 final-test 数据或标签。
+
+反馈边界固定为：阶段一合成和阶段二清洗不读取本轮人工反馈，也不请求人逐条判断；阶段三选择查询后才释放相应标签和新收集的真人反馈。公开数据集的既有标签只能按冻结协议用于离线 development 结果评价或阶段三的独立回放，不得作为阶段一、二的交互反馈。
 
 ## 2. 目标代码目录
 
@@ -86,15 +88,15 @@ tests/
 
 ### 步骤 A：冻结一份试验配置
 
-每次正式运行通过 CLI 固定数据路径、PRISM split manifest、生成/训练预算、随机种子和指标定义。实验 1A 的生成模型与下游任务模型统一固定为 `Qwen/Qwen3-8B`，revision 为 `b968826d9c46dd6066d109eabc6255188de91218`；服务器 API 必须部署同一 revision，生成 API 和训练 chat template 均关闭 thinking 模式。运行 manifest 保存模型 ID、revision 和实际解析到的训练模型 commit。后续实验如需更换模型，须在新实验协议中预先冻结，不得混入同一对照矩阵。
+每次正式运行通过 CLI 固定数据路径、PRISM split manifest、生成/训练预算、随机种子和指标定义。实验一数据合成对照的生成模型与下游任务模型统一固定为 `Qwen/Qwen3-8B`，revision 为 `b968826d9c46dd6066d109eabc6255188de91218`；服务器 API 必须部署同一 revision，生成 API 和训练 chat template 均关闭 thinking 模式。运行 manifest 保存模型 ID、revision 和实际解析到的训练模型 commit。后续实验如需更换模型，须在新实验协议中预先冻结，不得混入同一对照矩阵。
 
 每次运行都将不可变配置副本写进 run 目录，并记录数据源文件哈希、代码版本、Python/依赖版本、CUDA 信息（如使用）、随机种子以及开始/结束时间。
 
-### 步骤 B：完成实验 1A（静态数据合成）
+### 步骤 B：完成实验一的数据合成对照
 
-沿用 `experiments/synthesis/` 适配器。正式 runner `experiments/experiment_1a.py` 使用确定性 seed group 子集和共同服务端 token 上限。正式运行要求 endpoint 对每次请求返回 usage；Self-Instruct/Evol-Instruct 的所有请求均计入预算。预算末尾以完整候选结束并记录有限超额；候选安全上限先触发时运行失败。
+沿用 `experiments/synthesis/` 适配器。正式 runner `experiments/experiment_one_synthesis.py` 使用确定性 seed group 子集和共同服务端 token 上限。正式运行要求 endpoint 对每次请求返回 usage；Self-Instruct/Evol-Instruct 的所有请求均计入预算。预算末尾以完整候选结束并记录有限超额；候选安全上限先触发时运行失败。
 
-每种方法从相同 seed 出发生成候选；仅使用各臂相同的 schema 检查和文本规范化，不进行语义清洗或反馈更新。各臂使用相同训练记录数与 Qwen LoRA 配置，并按真实输入 token 数达到共同的下游训练预算。Development 评价仅读取 PRISM development 的独立标签 sidecar，输出 chosen/rejected 条件 log-probability 排序准确率和参考回答 NLL；禁止读取 final-test。实现见 `experiments/experiment_1a.py` 与 `experiments/evaluation/qwen_sft.py`。
+每种方法从相同 seed 出发生成候选；仅使用各臂相同的 schema 检查和文本规范化，不进行语义清洗、人工反馈或反馈更新。各臂使用相同训练记录数与 Qwen LoRA 配置，并按真实输入 token 数达到共同的下游训练预算。Development 评价仅读取 PRISM development 的独立标签 sidecar，输出 chosen/rejected 条件 log-probability 排序准确率和参考回答 NLL；这是固定的离线结果评价，不给生成器逐条反馈；禁止读取 final-test。实现见 `experiments/experiment_one_synthesis.py` 与 `experiments/evaluation/qwen_sft.py`。
 
 ### 步骤 C：实现清洗（实验二）
 
@@ -104,7 +106,7 @@ tests/
 2. `DeterministicCleaner`：先规范化并精确去重，再按字符 5-gram TF-IDF cosine 相似度阈值 `0.92` 过滤近重复。平分时采用确定性规则；每条删除记录都记录保留代表项和 `duplicate_of`。
 3. `QualityJudgeCleaner`：先运行确定性清洗，再交由固定版本 judge。只有 rubric 平均分不低于 `4/5` 且每个维度不低于 `3/5` 才保留。
 
-启用第三种方法前，按冻结的抽样规则抽取至少 50 条候选做人类校准，且要从被拒绝样本中随机抽样。报告误删率、保留率、保留样本中的低质量残留率和 judge 成本。校准门槛未通过时，整体系统使用方法 2，并报告质量过滤器尚未验证。当前活动代码中还没有清洗器实现。
+阶段二不安排人工校准或逐条审查。固定模型 judge 的分数只能作为自动代理信号；报告保留率、去重率、覆盖变化、处理成本和固定 development 集下游表现，不报告缺少人工真值时无法可靠计算的误删率/低质量残留率。需要人工抽查时，将其作为阶段三反馈查询并计入统一人工预算。当前活动代码中还没有清洗器实现。
 
 ### 步骤 D：实现反馈选择（实验三）
 
@@ -117,9 +119,9 @@ tests/
 
 所有策略按相同的累计实测人工分钟预算停止，不只对齐查询数量。随机化成对显示顺序，向标注者隐藏实验组别和选择分数。释放标签前先写入 query 和 annotation event。历史标签回放只能检查选择机制；真实人工时间必须在新生成候选的独立 live study 中测量。当前活动代码尚无 selector 或标注界面。
 
-### 步骤 E：实现策略更新和实验 1B
+### 步骤 E：实现策略更新和多轮 RSI
 
-先做 synthesis-only RSI，以便识别更新机制。固定实验 1A 选出的合成 baseline，至少运行两轮，比较：
+先做 synthesis-only RSI，以便识别更新机制。固定实验一数据合成对照选出的合成 baseline，至少运行两轮，比较：
 
 - `R0 Fixed`：随机选择反馈，并作为相同的下游监督提供；但反馈不能改变下一轮合成策略。
 - `R1 Random-update`：随机选择反馈，并允许据此更新合成策略。
@@ -148,10 +150,10 @@ python -m pytest -q
 python -m compileall -q experiments scripts tests
 ```
 
-当前自动化测试覆盖已实现的数据工具、合成适配器及实验 1A 的预算、抽样、泄漏防护和结果写出逻辑；它不替代目标服务器上的真实模型 API 与 GPU 运行验证。
+当前自动化测试覆盖已实现的数据工具、合成适配器及实验一数据合成对照的预算、抽样、泄漏防护和结果写出逻辑；它不替代目标服务器上的真实模型 API 与 GPU 运行验证。
 
 ## 6. 当前实现边界
 
-**已实现：** 固定版本数据集下载器、PRISM/HelpSteer2 数据准备和审计、四种合成适配器、实验 1A 的预算匹配矩阵 runner、Qwen LoRA 训练、development 代理评价和分析脚本。
+**已实现：** 固定版本数据集下载器、PRISM/HelpSteer2 数据准备和审计、四种合成适配器、实验一数据合成对照的预算匹配矩阵 runner、Qwen LoRA 训练、development 代理评价和分析脚本。
 
-**后续实验仍须实现：** 清洗器和 judge 审计、反馈选择与真人标注事件采集、策略更新器/版本存储、多轮 controller、实验 1B 和系统对照。实验 1A 正式 runner 已完成本地确定性测试；还须在协作者服务器上验证真实模型 endpoint 和 GPU 训练。
+**后续仍须实现：** 清洗器和 judge 审计、反馈选择与真人标注事件采集、策略更新器/版本存储、多轮 controller 和系统对照。数据合成对照 runner 已完成本地确定性测试；还须在协作者服务器上验证真实模型 endpoint 和 GPU 训练。

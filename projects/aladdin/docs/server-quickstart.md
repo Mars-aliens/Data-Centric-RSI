@@ -37,9 +37,19 @@ export PYTHONPATH="$ALADDIN_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 mkdir -p "$ALADDIN_ROOT/data" "$ALADDIN_ROOT/runs" "$ALADDIN_ROOT/server-private"
 ```
 
-## 2. 下载并准备 PRISM
+需要核对论文 baseline 的上游代码时执行以下命令。它们固定到指定 commit；实验一数据合成实际使用项目内适配器，不依赖这些 checkout。
 
-先阅读 `docs/datasets.md` 和 `configs/datasets.json`，确认数据使用条件后执行：
+```bash
+bash scripts/fetch_synthesis_baselines.sh
+test "$(git -C baselines/synthesis/self-instruct-upstream rev-parse HEAD)" = "0b26ccaa415992100fa32df62d41b994cf928e23"
+test "$(git -C baselines/synthesis/wizardlm-upstream rev-parse HEAD)" = "cd4b4cc022b6426aee62d51f7ae99a4a6ec9aaef"
+```
+
+## 2. 下载并准备数据集
+
+实验一数据合成使用 PRISM。固定版本为 `HannahRoseKirk/prism-alignment@18ab5cfb37456f4ec8cbc00212ce54cf7b1239f6`，下载 `conversations.jsonl`、`utterances.jsonl`、`metadata.jsonl`，不下载 `survey.jsonl`。数据包含参与者文本和模型回答，许可分别为 CC-BY-4.0 与 CC-BY-NC-4.0；只用于符合条款的研究，不尝试识别参与者，不把数据文件上传到 GitHub。下载前确认你接受这些限制。
+
+在项目根目录运行以下命令。数据下载到 `data/raw/prism/`，处理结果写入 `data/processed/prism/`：
 
 ```bash
 "$PYTHON_BIN" -m scripts.download_datasets \
@@ -51,7 +61,18 @@ mkdir -p "$ALADDIN_ROOT/data" "$ALADDIN_ROOT/runs" "$ALADDIN_ROOT/server-private
   | tee "$ALADDIN_ROOT/runs/prism-audit.json"
 ```
 
-确认 prepare 状态为 `prepared`，审计无错误且 split 重叠数为 `0`。
+命令全部成功后，确认 prepare 状态为 `prepared`、审计命令退出码为 `0`，各 split 的 user overlap 均为 `0`。处理结果包含 `seed.jsonl`、`feedback_pool.jsonl`、`development.jsonl`、`final_test.jsonl` 和 `labels/`；数据合成环节使用 seed，development 及其标签只用于离线评价，不读取 final test。
+
+HelpSteer2 不是当前数据合成实验的运行依赖，仅用于后续受控反馈回放。需要下载时，固定版本为 `nvidia/HelpSteer2@990b2711a36180dd19d9c94b8627844866f8982a`，许可为 CC-BY-4.0：
+
+```bash
+"$PYTHON_BIN" -m scripts.download_datasets --dataset helpsteer2
+"$PYTHON_BIN" -m scripts.prepare_helpsteer2 --split-seed 17
+"$PYTHON_BIN" -m scripts.audit_datasets --dataset helpsteer2 \
+  | tee "$ALADDIN_ROOT/runs/helpsteer2-audit.json"
+```
+
+处理后写入 `data/processed/helpsteer2/`；保留 helpfulness、correctness、coherence、complexity、verbosity 五个评分维度及并列关系。官方 validation 留作 `final_test`，不得用于策略或阈值选择。
 
 ## 3. 启动生成模型 API
 
@@ -73,8 +94,8 @@ export MODEL_REVISION="b968826d9c46dd6066d109eabc6255188de91218"
 # export OPENAI_API_KEY="由密钥管理器注入"
 ```
 
-API 服务需逐请求返回 token usage。生成模型与下游训练模型应使用同一 revision；建议将 API 服务与训练任务放在不同 GPU。继续执行 [`实验一运行步骤`](experiment-one-synthesis-baselines.md)。
+API 服务需逐请求返回 token usage。生成模型与下游训练模型应使用同一 revision；建议将 API 服务与训练任务放在不同 GPU。继续执行 [`实验一数据合成运行步骤`](experiment-one-data-synthesis.md)。
 
-## 4. 运行实验一 1A
+## 4. 运行实验一：数据合成
 
-按 [`实验一运行步骤`](experiment-one-synthesis-baselines.md) 完成 API 预检、正式运行和结果汇总。
+按 [`实验一数据合成运行步骤`](experiment-one-data-synthesis.md) 完成 API 预检、正式运行和结果汇总。
