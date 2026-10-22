@@ -13,9 +13,7 @@
 
 本技术点当前覆盖 Harness/Task Model 执行路径的候选源码和有限训练配置修改。完整的数据构建策略、Memory/Skill 与所有工具编排尚未全部接入候选运行接口，不能宣称已经验证任意 Data System 组件均可安全演化。
 
-## 2. 研究基础与对照边界
-
-早期 HelpSteer2/Qwen 组件矩阵、60 批耐久实验、`independent` 和 `dependency-aware-joint` 均属于旧技术一协议。它们说明项目已有 Data Harness 演化和持续运行经验，但任务语义、候选规则与当前 T1 不同，不进入本协议的统计比较，也不证明新 T1 的故障隔离效果。
+## 2. 对照边界
 
 当前可执行的比较条件如下：
 
@@ -28,7 +26,7 @@
 
 `B0-fixed` 与 T1 的 stable branch 是配对运行控制。它们用于检查加入候选机制后稳定分支是否仍能完成相同任务流，不单独证明候选修改有效。故障注入是安全属性测试，不是另一种演化算法。
 
-当前没有可安全执行的“候选与稳定状态共享、关闭隔离”实验臂，也没有关闭 T1 运行时门控的正式 runner。不得在真实稳定目录或共享服务器上运行不受限的 LLM 生成代码。需要比较 General Self-Harness 等方法时，先核验作者代码许可证，再实现可复核的 HelpSteer2 适配；未实现前不得声称优于该方法。相关工作状态见 [`baseline_research.md`](../../code/technologies/technology_one/baseline_research.md)。
+当前对照用于评估固定流水线、候选隔离、故障检测和恢复。不得在真实稳定目录或共享服务器上运行不受限的 LLM 生成代码。外部方法比较需在完成可复核的 HelpSteer2 适配后另行设计。
 
 ## 3. 共同任务与配对条件
 
@@ -46,14 +44,14 @@ pilot 固定使用 `seed=17`、`stream_seed=17`、`groups_per_batch=50`、`feedb
 按下列顺序运行，每项使用全新的 output directory：
 
 1. 生成真实数据 manifest，审计 revision、源数据哈希、分组泄漏、类别统计、可用/排程批次数与最后一批大小。
-2. 运行 `B0-fixed` 的四批 smoke，确认完成 `4/4`，且至少发生一次到期反馈后的训练与 checkpoint 更新。
+2. 运行 `B0-fixed` 的 4 周期部署 smoke，确认完成 `4/4`，且至少发生一次到期反馈后的训练与 checkpoint 更新。
 3. 用固定合规输入完成 Decision LLM endpoint/schema smoke 和提案质量筛选；不把此筛选计入任务效果实验。
 4. 用 `scripts/create_t1_smoke_candidate.py` 生成行为不变的候选 fixture，运行 `T1-shadow-clean`。确认稳定与候选在第 0 至 3 批均完成、候选第 3 批收到已释放反馈并能保存自己的 checkpoint。fixture 只测部署链路，不计作 RSI 候选或方法结果。
 5. 为独立的候选 fixture 设置 `fault_injection: {"3": "invalid_protocol"}`，运行 `T1-shadow-fault`。确认候选在故障批被拒绝并停止，稳定分支仍完成 `4/4`，稳定 checkpoint 前后哈希相同，故障和候选成本可审计。
 6. 用通过本地 proposal/bundle 检查的真实 Decision LLM 候选执行独立 pilot。候选失败可作为被隔离的失败记录，但不能把 fixture 结果计作 LLM 自进化结果。
 7. 用相同 run 配置在批次边界中断并恢复一次，确认已提交批次不重复、反馈不重复释放、run signature 不变。恢复测试与干净 smoke 分开报告。
 
-具体环境、API、Docker 镜像、GPU、配置和命令见执行手册。新 runner 的 `--max-batches 4` 会将确定性流限制为前四批；manifest 同时记录完整可用批数、实际排程批数和限制值。正式全流运行不传 `--max-batches`。
+具体环境、API、Docker 镜像、GPU、配置和命令见执行手册。新 runner 的 `--max-batches 4` 会将确定性流限制为前四批；manifest 同时记录完整可用批数、实际排程批数和限制值。Smoke 通过后按执行手册运行 10～20 周期 pilot，再确定正式运行规模。
 
 ## 5. 故障覆盖
 
@@ -81,7 +79,7 @@ pilot 固定使用 `seed=17`、`stream_seed=17`、`groups_per_batch=50`、`feedb
 - 恢复能力：中断前后状态是否一致、恢复成功率与恢复耗时。
 - 任务与成本：stable/candidate 分别报告预序列 Macro-F1、accuracy、训练步骤/耗时、预测耗时、候选失败成本和额外运行时间。
 
-工程 pilot 通过条件：
+部署 smoke 通过条件：
 
 1. manifest 与泄漏审计通过，真实数据的 group 与标签统计可复核；
 2. `B0-fixed` 与 `T1-shadow-clean` 的稳定分支各自完成 `4/4`，final-test 未访问；
@@ -89,7 +87,7 @@ pilot 固定使用 `seed=17`、`stream_seed=17`、`groups_per_batch=50`、`feedb
 4. `invalid_protocol` 被识别，候选停止，stable 仍完成 `4/4`，stable checkpoint 前后哈希一致；
 5. 至少一次批次边界恢复通过，且同一批次/反馈没有重复提交。
 
-这些门槛只决定是否进入正式协议冻结，不是统计显著性标准，也不能支持“方法优于 baseline”的结论。任何门槛失败都先修实现并重新跑全套 pilot，不进入昂贵长周期运行。
+部署 smoke 通过后运行 10～20 周期 pilot，评估稳定运行、隔离、恢复和资源成本。根据 pilot 结果再冻结正式实验协议与规模。任何 smoke 门槛失败都先修复并重跑 smoke。
 
 ## 7. 正式实验仍需冻结
 

@@ -4,19 +4,12 @@ import json
 import os
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Sequence
 
-from core_system.mle_core.interfaces import Evaluator, PolicyAdapter, TaskModelTrainer
-from core_system.mle_core.models import ActionProposal, Budget, Observation, TaskRecord, to_jsonable
+from core_system.mle_core.interfaces import Evaluator, TaskModelTrainer
+from core_system.mle_core.models import Budget, TaskRecord, to_jsonable
 from core_system.mle_core.store import ArtifactStore
 
-from .decision_protocol import (
-    ReflectionStore,
-    build_policy_prompt,
-    reflection_from_response,
-    prompt_hash,
-)
 from .harness_evolution import (
     HarnessEditProposal,
     HarnessProposalError,
@@ -98,41 +91,6 @@ def budget_from_value(value: dict[str, Any] | None) -> Budget:
     return Budget(**{field: value.get(field, 0) for field in fields})
 
 
-def _record_payload(records: list[TaskRecord]) -> list[dict[str, Any]]:
-    return [to_jsonable(record) for record in records]
-
-
-def _expected_versions(raw: Any, observation: Observation) -> dict[str, str]:
-    """Normalize the policy field without weakening Action System guards."""
-    current = {
-        "harness": observation.config.harness_version,
-        "data": observation.config.data_version,
-        "task": observation.config.task_id,
-    }
-    if raw is None:
-        return {}
-    if isinstance(raw, dict):
-        recognized = {
-            str(key): str(value)
-            for key, value in raw.items()
-            if str(key) in current
-        }
-        # Ignore unknown model labels only when replacing them with current
-        # versions, so every malformed version object remains guarded.
-        return recognized or current
-    # Some local-model JSON responses serialize this object as a list or string.
-    # Preserve the version precondition rather than allowing an unguarded action.
-    return current
-
-
-def _arguments(raw: Any) -> dict[str, Any]:
-    if raw is None:
-        return {}
-    if not isinstance(raw, dict):
-        raise ServerCommandError("Policy response 'arguments' must be a JSON object")
-    return raw
-
-
 def _decision_model_payload(
     model_id: str,
     model_revision: str,
@@ -154,109 +112,8 @@ def _decision_model_payload(
     return value
 
 
-class CommandPolicyAdapter(PolicyAdapter):
-    """Run the server's real decision/evolution policy through JSON stdin/stdout."""
-
-    def __init__(
-        self,
-        command: JsonCommand,
-        *,
-        method: str,
-        model_id: str,
-        model_revision: str,
-        reflection_path: str | Path | None = None,
-        model_settings: dict[str, Any] | None = None,
-    ):
-        self.command = command
-        self.method = method
-        self.model_id = model_id
-        self.model_revision = model_revision
-        self.model_settings = dict(model_settings or {})
-        self.reflections = ReflectionStore(reflection_path) if reflection_path else None
-        self._action_stage = 0
-
-    def _sequence_action(self, observation: Observation) -> tuple[str, dict[str, Any]]:
-        """Return the next legal action for the fixed ReAct control sequence."""
-        if self._action_stage == 0:
-            return "select_records", {
-                "operation": "select_records",
-                "version": "1.0",
-                "split": "seed",
-            }
-        if self._action_stage == 1:
-            datasets = [item for item in observation.artifacts if item.kind == "dataset"]
-            if not datasets:
-                raise ServerCommandError("Action System has no dataset artifact before train")
-            return "train", {"dataset_artifact_id": datasets[-1].artifact_id}
-        if self._action_stage == 2:
-            return "evaluate", {"split": "held_in"}
-        if self._action_stage == 3:
-            return "evaluate", {"split": "held_out"}
-        return "finish", {}
-
-    def propose(self, observation: Observation) -> ActionProposal:
-        prior = ()
-        if self.method == "react-reflexion" and self.reflections is not None:
-            prior = self.reflections.eligible(decision_step=observation.batch_index)
-        system_prompt, user_prompt = build_policy_prompt(
-            observation, method=self.method, reflections=prior
-        )
-        response = run_json_command(
-            self.command,
-            {
-                "protocol": "lego-policy-v1",
-                "method": self.method,
-                "model": _decision_model_payload(
-                    self.model_id, self.model_revision, self.model_settings
-                ),
-                "prompt": {"system": system_prompt, "user": user_prompt},
-                "eligible_reflection_ids": [item.reflection_id for item in prior],
-                "observation": to_jsonable(observation),
-            },
-        )
-        raw = response.get("proposal", response)
-        if not isinstance(raw, dict):
-            raise ServerCommandError("Policy response 'proposal' must be a JSON object")
-        if self.method == "react-reflexion" and self.reflections is not None:
-            reflection = reflection_from_response(
-                response,
-                observation=observation,
-                model_id=self.model_id,
-                model_revision=self.model_revision,
-                system_prompt=system_prompt,
-            )
-            if reflection is not None:
-                self.reflections.add(reflection)
-        expected_action, expected_arguments = self._sequence_action(observation)
-        proposed_action = str(raw["action_type"])
-        proposed_arguments = _arguments(raw.get("arguments"))
-        if proposed_action != expected_action or proposed_arguments != expected_arguments:
-            rationale = (
-                f"Action System normalized the model proposal to the required "
-                f"stage action {expected_action} and canonical arguments. "
-                f"Model action={proposed_action}, model arguments={proposed_arguments}. "
-                f"Model rationale: {str(raw.get('rationale', ''))[:400]}"
-            )
-            action_type = expected_action
-            arguments = expected_arguments
-        else:
-            rationale = str(raw.get("rationale", ""))
-            action_type = proposed_action
-            arguments = proposed_arguments
-        self._action_stage += 1
-        return ActionProposal(
-            action_type=action_type,
-            arguments=arguments,
-            expected_versions=_expected_versions(raw.get("expected_versions"), observation),
-            estimated_cost=budget_from_value(response.get("cost", raw.get("estimated_cost"))),
-            rationale=rationale,
-            model_id=self.model_id,
-            model_revision=self.model_revision,
-            system_prompt_hash=prompt_hash(system_prompt),
-            user_prompt_hash=prompt_hash(user_prompt),
-            input_artifact_ids=tuple(item.artifact_id for item in observation.artifacts),
-            output_token_count=int((response.get("cost") or {}).get("llm_tokens", 0)),
-        )
+def _record_payload(records: list[TaskRecord]) -> list[dict[str, Any]]:
+    return [to_jsonable(record) for record in records]
 
 
 class CommandHarnessEditor:

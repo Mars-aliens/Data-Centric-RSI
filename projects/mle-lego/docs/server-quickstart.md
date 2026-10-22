@@ -55,7 +55,7 @@ $LEGO_ROOT/data/helpsteer2-validation.jsonl
   --stream-seed 17 --groups-per-batch 50 --feedback-delay 2
 ```
 
-确认 development 至少有 100 批（5,000 个不重复 prompt groups），保存 manifest SHA256。少于 100 批就停止，不要复制数据凑数。
+确认 development 数据可用且没有重复 prompt group，保存 manifest SHA256。数据审计完成后按执行手册先做 4 周期 smoke。
 
 ## 3. 配置 Task Model
 
@@ -82,7 +82,7 @@ export CUDA_VISIBLE_DEVICES=<stable使用的GPU编号>
   --groups-per-batch 50 --feedback-delay 2 --max-batches 4
 ```
 
-通过条件：`status=complete`、`completed_batches=4`，第 4 批使用到期反馈训练，`final_test_used=false`。失败就停止排查。
+通过条件：`status=complete`、`completed_batches=4`，第 4 批使用到期反馈训练，`final_test_used=false`。失败就停止排查。此步骤是部署 smoke，之后再运行 10～20 周期 pilot。
 
 ## 5. 配置 Decision LLM 并做 API smoke
 
@@ -104,14 +104,16 @@ export LEGO_POLICY_TIMEOUT_SECONDS=600
 按[技术一安全自进化执行手册](technology-one-safe-evolution-runbook.md)配置 Docker digest、候选 bundle、资源限制和另一张 GPU/MIG。依次完成：
 
 1. `--preflight-only` 预检；
-2. 4 批无故障 `T1-shadow-clean`；
-3. 独立 run，在 batch 3 注入 `invalid_protocol`；
+2. 4 批无故障 `T1-shadow-clean` smoke；
+3. 独立 smoke run，在 batch 3 注入 `invalid_protocol`；
 4. 批次边界中断并恢复。
+
+以上 smoke 全部通过后，按协议配置 10～20 周期 pilot。pilot 结果通过审查后，再决定是否进入正式规模实验。
 
 通过条件：clean 两个分支均完成 4/4；故障候选停止而 stable 完成 4/4 且 checkpoint 未改变；恢复没有重复批次或反馈。每项使用新的 run ID 和输出目录。
 
-## 7. 正式实验
+## 7. Pilot
 
-正式规模和 65-run 矩阵见[正式协议](../experiments/technology_one/formal-protocol-v1.md)。**当前不要启动正式递归实验**：runner 尚未实现每 10 批生成新候选及多候选恢复。先完成该代码门槛，再由维护者冻结服务器模型 revision、Docker digest、资源预算和 commit。正式每个 run 为 100 批、`feedback_delay=2`，不得传 `--max-batches`。
+4 周期 smoke 全部通过后运行 10～20 周期 pilot。记录稳定分支完成率、候选隔离、恢复结果、模型/数据版本和资源成本。审查 pilot 结果后再确定正式实验设计与运行规模；不要提前启动长周期正式实验。
 
 运行日志、manifest、summary、状态文件和配置哈希保存在 `runs/`；不要把数据、模型、checkpoint、密钥或私有配置提交到 Git。

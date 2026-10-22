@@ -8,7 +8,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        请先阅读 `projects/mle-lego/docs/technical-one-experiment-parameter-card.md` 和 `projects/mle-lego/docs/contributor-execution-runbook.md`。不得修改已冻结参数，也不得用 final-test 数据选择候选。
+        请先阅读 `projects/mle-lego/docs/server-quickstart.md` 和 `projects/mle-lego/docs/technology-one-safe-evolution-runbook.md`。不得修改已冻结参数，也不得用 final-test 数据选择候选。
   - type: input
     id: commit
     attributes:
@@ -20,7 +20,7 @@ body:
     id: task_type
     attributes:
       label: 任务类型
-      description: 只能选择参数冻结卡中的一种任务。
+      description: 选择当前协议中的一种任务。
       options:
         - smoke
         - formal-comparison
@@ -52,7 +52,7 @@ body:
     id: experiment_parameters
     attributes:
       label: 实验参数块
-      description: 从参数冻结卡复制对应任务类型，并填写 seed、batch、模式、预算和 final_test 状态。
+      description: 填写 seed、周期、模式、预算和 final_test 状态。
       placeholder: |
         task_type: formal-comparison
         seeds: 17 23 29 31 37 41 43 47 53 59

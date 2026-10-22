@@ -64,7 +64,7 @@ runner 可选接受正整数 `max_batches`，只排程确定性 development 流�
 
 每个 run 的流必须由唯一 prompt groups 组成；不得重复样本来凑批次或延长周期。所有实验臂使用同一划分、同一流顺序和同一反馈释放表。由于 HelpSteer2 没有时间戳，顺序由固定 `stream_seed` 的确定性哈希排列产生，只能称作“随机化受控回放顺序”。同一 run 内稳定版本和候选版本获得完全相同的任务输入和反馈到达时序。
 
-运行长度由可用且未重复的 `development` prompt groups、每批 50 组和预算共同决定。按此前观测到的约 10,161 个 train prompt groups，v1 预计最多约 122 个 development batches；正式准备时必须以当前下载文件重新计算 manifest。100 批运行要求至少 5,000 个 development groups；HelpSteer2 单独不支持 300 批×50 组。不得重复记录凑周期；若需更长运行，应另行注册不同任务流的外部验证，不得混合结果仍称同一任务。
+运行长度由实际 manifest 中可用且未重复的 `development` prompt groups、每批 50 组和预算共同决定。启动实验前以当前数据文件生成并审查 manifest；不得重复记录凑周期。首轮先运行 10～20 周期 pilot，再根据数据规模和资源成本确定正式运行长度。
 
 ## 6. 三个技术点在共同任务中的可检验作用
 
@@ -108,11 +108,11 @@ runner 可选接受正整数 `max_batches`，只排程确定性 development 流�
 
 ## 8. 当前实现状态与安全边界
 
-新模块 `technology_one/long_horizon_task.py` 已实现任务数据契约、分组标签、train group 切分、受控流顺序、无标签批次视图、反馈释放、版本绑定预序列评测、终态离线汇总和调度/Oracle 状态恢复。预检 bundle 的 `agent-visible/` 只含 seed 与 manifest；未来 development 输入及释放时间表位于 `runner-only/`，必须通过文件权限或独立挂载隔离，不能只依赖目录命名。`scripts/prepare_long_horizon_task.py` 可从本地原始 split JSONL 生成统计 manifest 和预检 bundle；真实数据未包含在仓库中。它不改写旧适配器。当前实现仍是可信 runner 内的 Python 边界，不是对抗性安全沙箱：不得把 `FeedbackOracle` 或 gold store 的对象引用交给 Decision LLM、候选代码或 Task Model；未来若允许不可信候选代码，必须把 oracle 放入独立进程/权限域，仅经受限 API 提供已释放反馈。
+`technology_one/long_horizon_task.py` 已实现任务数据契约、分组标签、train group 切分、受控流顺序、无标签批次视图、反馈释放、版本绑定预序列评测、终态离线汇总和调度/Oracle 状态恢复。预检 bundle 的 `agent-visible/` 只含 seed 与 manifest；未来 development 输入及释放时间表位于 `runner-only/`，必须通过文件权限或独立挂载隔离，不能只依赖目录命名。`scripts/prepare_long_horizon_task.py` 可从本地原始 split JSONL 生成统计 manifest 和预检 bundle；真实数据未包含在仓库中。当前实现仍是可信 runner 内的 Python 边界，不是对抗性安全沙箱：不得把 `FeedbackOracle` 或 gold store 的对象引用交给 Decision LLM、候选代码或 Task Model；未来若允许不可信候选代码，必须把 oracle 放入独立进程/权限域，仅经受限 API 提供已释放反馈。
 
 正式实验前还必须：用实际固定 revision 的数据文件生成 manifest，检查实际 group counts、类别占比、批次数和最后批大小；在真实模型和服务器上 smoke 固定流式 Qwen runner，确认预序列预测及 parent checkpoint 续训只使用 seed 加已释放反馈；将新 T1/T2/T3 runtime 接入真实分批执行、候选隔离与故障注入。HelpSteer2 标签是组内质量代理目标，不能支持个体偏好或自然漂移结论。
 
-因此，下一步是生成真实数据 manifest 并审计实际数据，再完成真实 Task Model 的 parent-checkpoint 固定流水线 smoke。通过这些门槛后，才启动新 T1/T2/T3 端到端实验。此前技术一代码和运行结果不包含在当前 GitHub 项目中，也不作为新三技术的前置工作或验证证据。
+下一步是生成真实数据 manifest 并审计实际数据，再完成 4 周期 Task Model 固定流水线部署 smoke。通过后运行 10～20 周期 pilot，再逐步开展 T1/T2/T3 端到端实验。
 
 ## 9. 正式运行前还需冻结的实验参数
 

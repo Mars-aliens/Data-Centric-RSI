@@ -727,7 +727,7 @@ def prepare_helpsteer2_long_horizon_task(
     *,
     config: LongHorizonTaskConfig | None = None,
 ) -> PreparedLongHorizonTask:
-    """Prepare a leak-audited controlled stream without changing the legacy adapter."""
+    """Prepare a leak-audited controlled stream without changing the task adapter."""
     config = config or LongHorizonTaskConfig()
     train_groups, train_canonical, train_singletons = _make_groups(
         train_rows, source_split="train", config=config

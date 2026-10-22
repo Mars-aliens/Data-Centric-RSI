@@ -1,8 +1,8 @@
 # 技术一：安全自进化与故障隔离
 
-本文说明当前新路线中技术一的代码入口、运行步骤和结论边界。旧 `independent`、`dependency-aware-joint` Harness 实验仍保留为历史证据，不是本流程的输入，也不能替代这里的长周期候选隔离实验。
+本文说明技术一的代码入口、运行步骤和结论边界。
 
-4 批工程 pilot 的步骤以[技术一实验协议 v1](../experiments/technology_one/protocol-v1.md)为准；正式 100-cycle 矩阵以[正式长周期协议 v1](../experiments/technology_one/formal-protocol-v1.md)和机器可读计划为准。本手册负责服务器部署和命令。正式研究规模已冻结，但服务器模型、数据哈希、Docker digest、资源预算仍须预检登记。
+工程 smoke 的步骤以[技术一实验协议 v1](../experiments/technology_one/protocol-v1.md)为准。smoke 通过后运行 10～20 周期 pilot；根据结果完成正式协议和运行规模的冻结。本手册负责服务器部署和命令。
 
 ## 1. 要验证什么
 
@@ -33,7 +33,7 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 ```
 
-按新服务器的 NVIDIA 驱动/平台，在 PyTorch 官方安装选择器选出 PyTorch 2.7.1 对应的 CUDA wheel；不要照抄旧服务器 CUDA 配置。先安装该选择器生成的 PyTorch wheel，再安装仓库运行依赖并执行单元测试：
+按新服务器的 NVIDIA 驱动/平台，在 PyTorch 官方安装选择器选出 PyTorch 2.7.1 对应的 CUDA wheel。先安装该选择器生成的 PyTorch wheel，再安装仓库运行依赖并执行单元测试：
 
 ```bash
 python -m pip install torch==2.7.1 --index-url "<PyTorch 官方选择器给出的 CUDA wheel index>"
@@ -44,7 +44,7 @@ python -m pytest -q
 
 占位符必须替换成选择器为该服务器生成的 index URL。仓库依赖文件不指定 CUDA 变体，避免把一台服务器的 GPU wheel 错装到另一台服务器；若 PyTorch 2.7.1 不兼容目标服务器，先冻结兼容版本组合再开展实验。`requirements-server.txt` 安装 numpy、scikit-learn、pytest、Transformers、PEFT 和 Accelerate；`requirements-research.txt` 还安装 Hugging Face 数据下载库。Task Model 权重、原始数据、服务器私有配置和运行输出均不随仓库上传。
 
-在项目目录设置运行变量。Decision API endpoint 和 API key 由这台服务器提供，不预设旧服务器地址：
+在项目目录设置运行变量。Decision API endpoint 和 API key 由服务器提供：
 
 ```bash
 export LEGO_ROOT="$PWD"
@@ -121,7 +121,7 @@ sha256sum "$LEGO_ROOT/data/helpsteer2-train.jsonl" \
 
 预检 bundle 用于检查切分、批次和反馈释放时间；runner 仍从上述原始 train/validation JSONL 重建同一个任务。正式实验固定并记录数据哈希、dataset revision、`stream_seed`、`groups_per_batch` 和 `feedback_delay`。smoke 可以另建小规模数据副本或使用较大的 `groups_per_batch` 减少批次数，但 smoke 不能计入正式结果。
 
-数据审计先按完整 development 流生成 manifest，不设置 `--max-batches`。短 smoke 使用相同数据、seed 和流顺序，只排程前四批；manifest 会记录流前缀限制，短流结果不得与完整流合并：
+数据审计先按完整 development 流生成 manifest。部署 smoke 使用相同数据、seed 和流顺序，只排程前四批；manifest 会记录流前缀限制，smoke 结果不计入后续 pilot：
 
 ```bash
 "$TRAIN_PY" scripts/prepare_long_horizon_task.py \
@@ -152,7 +152,7 @@ sha256sum "$LEGO_ROOT/data/helpsteer2-train.jsonl" \
 }
 ```
 
-`max_steps: 1` 只用于首轮四批工程 smoke，确保在有限成本下实际发生一次 parent-checkpoint 续训；它不是正式训练配方。记录实际模型权重 revision、Tokenizer、target modules、显存限制和该服务器分配的 GPU。示例不预设显存额度；按服务器情况决定是否设置 `max_gpu_memory_gib`，它只是进程软限制。所有实验臂必须使用一致配置；GPU 编号不可照抄其他服务器的示例。
+`max_steps: 1` 只用于首轮 4 周期部署 smoke，确保在有限成本下实际发生一次 parent-checkpoint 续训；它不是正式训练配方。记录实际模型权重 revision、Tokenizer、target modules、显存限制和该服务器分配的 GPU。示例不预设显存额度；按服务器情况决定是否设置 `max_gpu_memory_gib`，它只是进程软限制。所有实验臂必须使用一致配置；GPU 编号不可照抄其他服务器的示例。
 
 先运行不含候选的固定流水线 `B0-fixed`，建立同流控制并确认延迟反馈后确实触发 checkpoint 更新。批次数限定为 4：
 
@@ -248,7 +248,7 @@ export LEGO_TASK_MODEL_DEVICE=cuda
   --preflight-only
 ```
 
-预检应显示 `preflight_ok`、候选 manifest 哈希和 `final_test_used: false`。确认 Docker daemon、镜像 digest、Task Model revision、数据路径以及 GPU 不重叠后，用相同参数去掉 `--preflight-only` 运行四批 pilot。`T1-shadow-clean` 和故障实验必须使用各自的新 output directory、run ID 和 candidate ID。正式运行长度是 100 cycles，不传 `--max-batches`；但周期性候选调度未实现前，当前 runner 仅可用于 pilot/工程验证，不可作为正式 RSI 实验入口。
+预检应显示 `preflight_ok`、候选 manifest 哈希和 `final_test_used: false`。确认 Docker daemon、镜像 digest、Task Model revision、数据路径以及 GPU 不重叠后，用相同参数去掉 `--preflight-only` 完成 4 周期部署 smoke。`T1-shadow-clean` 和故障实验必须使用各自的新 output directory、run ID 和 candidate ID。Smoke 通过后运行 10～20 周期 pilot；根据稳定性、隔离、恢复和资源成本再确定正式实验规模。周期性候选调度未实现前，不启动正式递归实验。
 
 先运行无故障候选：
 
@@ -263,7 +263,7 @@ export LEGO_TASK_MODEL_DEVICE=cuda
   --groups-per-batch 50 --feedback-delay 2 --max-batches 4
 ```
 
-确认 stable 和 candidate 都完成四批，candidate 在 batch 3 收到已释放反馈，并保留的是候选自己的 checkpoint。随后为独立的候选配置设置故障映射 `"fault_injection": {"3": "invalid_protocol"}`，使用全新的 candidate、run ID 和 output directory 重跑。预期候选在 batch 3 被拒绝并停止，stable 仍完成 `4/4`，stable checkpoint 前后哈希一致。通过 pilot 后，才逐类执行下一节的完整故障覆盖；正式效能 run 不注入故障。
+确认 stable 和 candidate 都完成 4 周期，candidate 在第 4 周期收到已释放反馈，并保留候选自己的 checkpoint。随后为独立候选配置故障映射 `"fault_injection": {"3": "invalid_protocol"}`，使用全新的 candidate、run ID 和 output directory 重跑。预期候选被拒绝并停止，stable 仍完成 `4/4`，stable checkpoint 前后哈希一致。Smoke 通过后再运行 10～20 周期 pilot，并依据结果决定后续实验规模。
 
 ## 7. 故障注入与判读
 

@@ -22,7 +22,7 @@ scripts/                            启动、审计和报告入口
 data/                               仅含说明；数据集放在仓库之外
 ```
 
-当前代码统一从 `technologies.technology_one` 导入。旧 Harness 实验代码、脚本和配置不包含在当前 GitHub 项目中；仅保留必要的研究进度说明。
+当前代码统一从 `technologies.technology_one` 导入。
 
 ## 研究范围与当前路线
 
@@ -40,7 +40,6 @@ data/                               仅含说明；数据集放在仓库之外
 - 运行可靠性：逐批原子状态、命令尝试日志、检查点来源链和配置/任务哈希。
 - T1：本地已接通可配置 Decision LLM 候选提案、源码 bundle provenance、固定镜像 digest 的 Docker shadow runner、运行时父版本绑定、候选输出安全检查和故障注入接口；尚未在真实服务器/Docker/GPU 上验证。
 - T2/T3：经验生命周期、反馈归因和多批次版本选择仍是机制骨架，尚未完成真实 runner 端到端集成和长周期实验。
-- 旧 `independent` / `dependency-aware-joint` Harness 实验不是新框架的前置步骤或验证证据；其代码和运行脚本不包含在当前项目中。
 
 本地测试不需要 GPU，但真实任务模型 smoke、服务器真实数据 manifest、正式故障注入和多随机种子评估都尚未完成。当前代码状态与下一道门槛见
 [docs/current-status.md](docs/current-status.md)。
@@ -53,7 +52,7 @@ data/                               仅含说明；数据集放在仓库之外
 
 - **README.md：** 安装和实验入口。
 - **服务器手册：** [docs/server-quickstart.md](docs/server-quickstart.md) 是当前服务器执行入口。
-- **技术一 pilot：** 先按[实验协议 v1](experiments/technology_one/protocol-v1.md)完成固定 baseline、无故障候选和单故障注入的四批工程验证，再按[服务器执行手册](docs/technology-one-safe-evolution-runbook.md)配置新服务器。pilot 不是正式多种子结果。
+- **技术一实验：** 按[实验协议 v1](experiments/technology_one/protocol-v1.md)完成 4 周期部署 smoke，再运行 10～20 周期 pilot；根据稳定性、隔离、恢复和资源成本决定正式实验规模。服务器配置与命令见[执行手册](docs/technology-one-safe-evolution-runbook.md)。
 - **协作指南：** [docs/server-quickstart.md](docs/server-quickstart.md) 说明新服务器从克隆、安装、数据准备到 smoke 的顺序。
 - **报告模板：**
   [docs/run-report-template.md](docs/run-report-template.md)
@@ -78,7 +77,7 @@ CPU 测试环境需要 PyTorch CPU wheel，因为部分模型协议测试会导�
 新服务器不能只执行 `pip install -r requirements.txt` 后就开始 GPU 实验。它还需要匹配服务器 CUDA/驱动的 PyTorch、Transformers/PEFT、外部 HelpSteer2 数据、可本地训练的 Task Model、Decision LLM API、Docker 和服务器私有配置。完整的从克隆到 smoke 的步骤见[技术一安全自进化执行手册](docs/technology-one-safe-evolution-runbook.md)。
 新路线首轮建议使用本地 `Qwen/Qwen3-8B` Task Model；T1 Decision LLM 先用百炼 Qwen3.8-Flash 做 pilot，依据提案质量和成本决定正式冻结 Flash 或升级评估 Qwen3.8-Max。正式 run 不能切换模型。不需要同时使用所有 Qwen 型号、Kimi 或额外 evaluator LLM。各服务器自行配置模型快照路径、revision、GPU、API 凭据和 endpoint。模型选择理由、非必需候选及后续执行顺序见[模型配置](docs/model-configuration.md)和[技术一运行手册](docs/technology-one-safe-evolution-runbook.md)。新服务器尚未完成真实 API/权重 smoke，不能把建议当作已验证结果。
 
-旧路线复现脚本不包含在当前项目中。`final_test` 在研究协议冻结前继续锁定。
+`final_test` 在研究协议冻结前继续锁定。
 
 ## 协作
 

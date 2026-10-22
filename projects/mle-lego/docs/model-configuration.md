@@ -45,7 +45,7 @@ MLE-LEGO 使用两个独立模型角色。项目不预设所有执行服务器�
 | Task Model | 在 HelpSteer2 流上预测，并用已释放标签做 LoRA 续训 | 当前 runner 从执行服务器本地 Hugging Face causal-LM 权重加载，要求 Transformers/PEFT 兼容 |
 | Decision LLM | 读取允许观察到的运行证据，提出 Data System 候选修改 | 通过 OpenAI-compatible Chat Completions endpoint 调用，可选服务器可访问的托管 Qwen、Kimi K3 或兼容的本地服务 |
 
-两个角色可以使用不同模型。Qwen 的托管 API 可以作为 Decision LLM，但当前 Task Model 训练器需要本地可加载权重，不能把纯 API 访问当作 LoRA 训练接口。Kimi K3 在当前实现中是托管 Decision LLM；除非另有可训练权重和兼容训练接口，否则不能作为本地 LoRA Task Model。旧实验中的 Qwen2.5-7B-Instruct、Qwen3-4B 等值属于历史配置，不覆盖本节的新路线默认组合。
+两个角色可以使用不同模型。Qwen 的托管 API 可以作为 Decision LLM，但当前 Task Model 训练器需要本地可加载权重，不能把纯 API 访问当作 LoRA 训练接口。Kimi K3 在当前实现中是托管 Decision LLM；除非另有可训练权重和兼容训练接口，否则不能作为本地 LoRA Task Model。
 
 ## Task Model 选择
 
@@ -113,7 +113,7 @@ export LEGO_POLICY_API_KEY="<从密钥管理器注入>"
 
 ## 后续执行顺序
 
-1. **盘点新服务器**：确认本地 Qwen3-8B 权重、Python/PyTorch/Transformers/PEFT/CUDA 版本、实际 GPU 与显存、HelpSteer2 文件、百炼地域和 API 权限。路径、GPU 编号、API endpoint/key 均由执行者私下配置，不从旧服务器复制。
+1. **盘点服务器**：确认本地 Qwen3-8B 权重、Python/PyTorch/Transformers/PEFT/CUDA 版本、实际 GPU 与显存、HelpSteer2 文件、百炼地域和 API 权限。路径、GPU 编号、API endpoint/key 均由执行者私下配置。
 2. **审计真实数据**：生成 HelpSteer2 manifest，检查分组、划分、样本数、类别比例、批次数、数据哈希和反馈可见性；数据审计不通过就停止在这里。
 3. **Task Model smoke**：用 Qwen3-8B 做短训练、预测、adapter 保存和 parent-checkpoint 恢复，确认标签 token/LoRA target modules/显存正常。固定同一 Task Model 给 stable/candidate 两个分支。
 4. **Decision LLM smoke**：按控制台确认的 Qwen3.8-Flash API ID 运行 `scripts/smoke_decision_endpoint.py`，验证鉴权、JSON/schema 和真实 token 成本；随后用少量候选提案评估内容质量。若质量不达预设门槛，再对 Max 独立重复这一步并在正式实验前冻结一种模型。失败时排查 API ID、地域、权限、endpoint 或 JSON mode，不用换模型掩盖配置问题。

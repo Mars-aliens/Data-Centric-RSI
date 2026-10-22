@@ -7,7 +7,7 @@ Data-Centric RSI 是一个研究总项目，关注系统如何在多轮运行中
 | 项目 | 研究重点 | 当前状态 |
 |---|---|---|
 | MLE-Aladdin | 在需求部分未知的情况下构建生成式机器学习数据，包括校准反馈和主动反馈选择 | 已纳入 `projects/aladdin/`；来源提交 `6571f7d`；102 项测试通过 |
-| MLE-LEGO | 自我改进的数据 Harness：依赖关系引导的修改、经验复用与连续反馈 | 已发布于 `projects/mle-lego/`；技术一已实现；技术二、三仍在规划 |
+| MLE-LEGO | 面向长周期稳定运行的 Data System 自我改进 | 已发布于 `projects/mle-lego/`；当前先进行技术一 pilot，技术二、三处于框架实现阶段 |
 
 两个子项目有各自的源码、协议、依赖和研究结论。总仓库中的两个 `projects/` 子目录是协同开发入口；它们仍保持命名空间、依赖和测试隔离。
 
@@ -33,10 +33,10 @@ Data-Centric-RSI/
 - 修改项目边界或共享接口前，先阅读[项目架构](docs/architecture.md)。
 - 分配实现和服务器运行工作前，先阅读[协作流程](docs/collaboration.md)。
 - MLE-LEGO 的安装、实验和现有证据见[项目说明](projects/mle-lego/README.md)。
-- MLE-LEGO 技术一的固定任务参数见[实验参数冻结卡](projects/mle-lego/docs/technical-one-experiment-parameter-card.md)。
+- MLE-LEGO 当前实验步骤和参数见[技术一服务器快速开始](projects/mle-lego/docs/server-quickstart.md)与[实验协议](projects/mle-lego/experiments/technology_one/protocol-v1.md)。
 - MLE-Aladdin 的安装、实验和集成流水线见[项目说明](projects/aladdin/README.md)。
 - 跨项目进度及待办事项见[项目状态](docs/project-status.md)。
-- 可复现的 MLE-LEGO 服务器实验请遵循[贡献者执行手册](projects/mle-lego/docs/contributor-execution-runbook.md)。
+- MLE-LEGO 服务器实验请遵循[技术一安全自进化执行手册](projects/mle-lego/docs/technology-one-safe-evolution-runbook.md)。
 
 ## 运行 MLE-LEGO 测试
 
