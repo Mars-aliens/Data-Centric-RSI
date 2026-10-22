@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mle-aladdin"
+version = "0.1.0"
+description = "Data-centric recursive improvement experiments for generative tasks"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+data = ["huggingface_hub==0.36.0"]
+analysis = ["numpy==1.26.4", "scikit-learn==1.5.1"]
+dev = ["pytest==7.4.4"]
+qwen = ["transformers>=4.51.0", "accelerate>=0.28", "peft>=0.10"]
+
+[project.scripts]
+aladdin-download-datasets = "scripts.download_datasets:main"
+aladdin-prepare-prism = "scripts.prepare_prism:main"
+aladdin-prepare-helpsteer2 = "scripts.prepare_helpsteer2:main"
+aladdin-audit-datasets = "scripts.audit_datasets:main"
+
+[tool.setuptools.packages.find]
+include = ["experiments*", "scripts*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

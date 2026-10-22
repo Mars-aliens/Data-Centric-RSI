@@ -1,8 +1,0 @@
-{
-  "hypotheses": [
-    {"id": "account-access", "text": "Cover account access, sign-in, and profile lockout cases."},
-    {"id": "billing", "text": "Cover invoices, receipts, and payment confirmation cases."}
-  ],
-  "weights": {"account-access": 0.5, "billing": 0.5},
-  "confirmed_edits": []
-}

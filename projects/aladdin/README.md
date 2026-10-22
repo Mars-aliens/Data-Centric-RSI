@@ -1,119 +1,76 @@
 # MLE-Aladdin
 
-Aladdin 是面向生成式机器学习任务的 Data-Centric RSI 研究项目。这类任务
-在开始时通常只有部分明确的需求和质量判断。本目录只包含 Aladdin 实现；
-MLE-LEGO 是独立项目，特意不包含在这里。
+Aladdin 研究面向生成式任务的数据中心化递归改进流程，重点关注可用样本有限、用户要求会随着具体反馈逐步明确的场景。
 
-## 研究范围
+## 当前研究方向
 
-Aladdin 研究数据管线如何将少量 seed 数据和有限反馈转化为更好的训练数据。
-本项目包含：
+```text
+少量种子样本
+  -> 合成候选数据
+  -> 清洗并检查质量
+  -> 选择有代表性的样本，收集人工反馈
+  -> 根据反馈调整下一轮的数据合成与清洗策略
+  -> 进入下一轮并评估下游任务表现
+```
 
-- 需求假设和需求状态更新；
-- 经过校准的人工/模型反馈协议；
-- 固定查询预算下的主动反馈选择；
-- 带泄漏检查的 HelpSteer2 和 HH-RLHF 适配器；
-- 数据合成、选择和下游效用评估；
-- 冻结基线和配对策略比较；
-- 可使用 vLLM-compatible endpoint 的多轮集成管线。
+三个数据操作由同一个外层 RSI 循环连接。
 
-当前实验用于验证单个机制，不能视为任何外部论文的正式复现，也不能将其
-合并报告为一个结果。数据集、模型权重、checkpoint、服务器 profile、
-凭据和运行输出都必须保留在 Git 之外。
+当前方向已有可行性试验方案，但还没有确认性结果，也尚未实现为完整的端到端系统。方案初步确定了数据集、对照方法、数据划分和预算控制；正式实验前仍须通过数据访问、隐私、模型版本和数据泄漏检查。
 
-## 仓库结构
+三阶段候选对照与系统对照见 `docs/baseline-shortlist.md`。这些是可行性研究建议，不是已经验证的结论。完整试验方案见 `docs/feasibility-pilot-protocol.md`。
 
-~~~text
-Aladdin/
-  core_system/                 Aladdin 使用的共享动作系统基础组件
-  local_experiments/aladdin/   Aladdin 适配器、协议、运行器和分析器
-  local_experiments/tests/     单元测试和协议测试
-  docs/                        实验和贡献者文档
-  scripts/                     仓库检查和打包工具
-  requirements.txt             CPU 测试和基线依赖
-  requirements-qwen.txt        可选的 Qwen/LoRA 依赖
-~~~
+实验一 1A 已有静态合成对照与 Qwen LoRA 下游评价 runner，默认比较 `seed-only`、固定提示词和改造版 Self-Instruct；任务适用并经确认后可加入改造版 Evol-Instruct。生成模型和下游任务模型统一固定为 `Qwen/Qwen3-8B`，revision 为 `b968826d9c46dd6066d109eabc6255188de91218`，并关闭 thinking 模式。服务器正式运行命令见 `docs/server-quickstart.md`，方法和评价定义见 `docs/experiment-one-synthesis-baselines.md`。确定性测试不调用模型，也不能作为合成质量证据。
 
-## 快速验证
+协作者的环境配置、数据准备、API 预检、实验执行顺序和当前实现状态见 `docs/reproduction-runbook.md`。各实验阶段的目标模块、数据格式、算法接口、开发顺序和测试门槛见 `docs/implementation-design.md`。实验 1B、清洗、反馈选择及完整多轮 RSI 仍处于待实现阶段。
 
-在仓库根目录执行：
+Linux 服务器按步骤执行的快速说明见 `docs/server-quickstart.md`。
 
-~~~bash
-python -m pip install -r requirements.txt
-export PYTHONPATH="$PWD"
-python -m pytest local_experiments/tests core_system/tests -q
-python -m compileall -q core_system local_experiments
-python scripts/check_aladdin_install.py
-~~~
+人工反馈成本、主动偏好学习和标注分歧相关文献见 `docs/human-feedback-literature.md`。
 
-测试使用合成 fixture，不需要 GPU、下载数据集或模型 endpoint。
+## 项目结构
 
-## 集成管线 smoke test
+- `README.md`：研究范围和快速入口。
+- `CONTRIBUTING.md`：协作约定。
+- `docs/baseline-shortlist.md`：三阶段对照及系统对照建议。
+- `docs/feasibility-pilot-protocol.md`：当前可行性试验方案、数据集和预算决策。
+- `docs/experiment-one-synthesis-baselines.md`：实验一合成对照的实现状态。
+- `docs/reproduction-runbook.md`：环境、数据、实验执行顺序及 GitHub 路径说明。
+- `docs/server-quickstart.md`：Linux 服务器安装、数据准备、API 预检和正式实验流程说明。
+- `docs/implementation-design.md`：目标代码结构、数据契约、算法和测试门槛。
+- `baselines/synthesis/UPSTREAMS.md`：上游仓库版本、许可和改造说明。
+- `configs/datasets.json`：固定的数据集版本、文件和使用限制。
+- `scripts/`：数据下载、准备和审计脚本。
+- `experiments/synthesis/`：当前已实现的数据合成方法和命令行程序。
+- `tests/`：不依赖 GPU 或在线模型的确定性测试。
 
-集成管线可以使用准备好的 JSONL 文件离线运行。数据文件和 requirements
-文件由运行者提供：
+数据集、模型权重、凭据、服务器配置和运行产物不得放入待提交的项目文件中。
 
-~~~bash
-export PYTHONPATH="$PWD"
-export TRAIN_PY=python
-export DATA_PATH=/path/to/seed-development-held-in.jsonl
-export REQUIREMENTS_PATH=/path/to/requirements.json
-export FEEDBACK_MODE=offline-replay
-bash local_experiments/aladdin/integrated_pipeline/server_preflight.sh
-~~~
+## 环境安装
 
-使用真实 endpoint 执行一轮：
+已在 Windows、Python 3.12.3 的 CPU 环境验证。数据准备和单元测试不需要 GPU。
 
-~~~bash
-export ENDPOINT=http://127.0.0.1:8000/v1/chat/completions
-export MODEL_NAME=Qwen/Qwen2.5-7B-Instruct
-export OUTPUT_DIR=/path/to/runs/aladdin-round-001
-export RUN_ID=aladdin-round-001
-bash local_experiments/aladdin/integrated_pipeline/server_run_round.sh
-~~~
+Windows PowerShell：
 
-只有在确实有人审查展示的候选数据时，才使用 FEEDBACK_MODE=interactive。
-只有在反馈文件由独立流程准备时，才使用 FEEDBACK_MODE=file。
-offline-replay 中已有的数据集标签不属于新的人工反馈。
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest -q
+```
 
-完整服务器交接说明位于
-local_experiments/aladdin/integrated_pipeline/SERVER_HANDOFF.md。
+Linux/macOS 将 Python 路径改为 `.venv/bin/python`。仅需运行时依赖可安装 `requirements.txt`；开发依赖文件还包含测试、数据下载和分析依赖。GPU 训练依赖单独安装，因为 PyTorch wheel 需要匹配服务器驱动和 CUDA 环境。
 
-HelpSteer2 技术一、Qwen 下游验证、HH-RLHF 诊断和集成管线的冻结参数位于
-docs/experiment-parameters.md。这些实验的指标不能合并成一个结果。
+## 数据集准备
 
-服务器执行者请按照
-[GitHub 服务器实验执行手册](docs/github-server-experiment-runbook.md)
-运行。该手册从 `projects/aladdin/` 开始，明确技术一 Debug、180 条件主实验、
-48 条件 Qwen 下游验证和结果回报顺序。
+下载脚本使用固定的数据集版本，数据写入 Git 忽略的 `data/raw/`。下载前先阅读 `docs/datasets.md`。PRISM 包含不同许可条件下的参与者文本和模型回复，需要明确确认使用限制。只下载对话、utterance 和 PII 元数据，不下载 survey 文件。
 
-## 主动反馈和下游验证
+```powershell
+.\.venv\Scripts\python.exe -m scripts.download_datasets --dataset all --confirm-research-terms
+.\.venv\Scripts\python.exe -m scripts.prepare_prism --split-seed 17
+.\.venv\Scripts\python.exe -m scripts.prepare_helpsteer2 --split-seed 17
+.\.venv\Scripts\python.exe -m scripts.audit_datasets --dataset all
+```
 
-HelpSteer2 和 HH-RLHF 运行器接收运行者提供的数据集路径，并将结果写入
-仓库外的输出目录。协议会分离 seed、development、held-in、held-out 和
-final-test 数据。final-test 标签必须一直封存到预注册的最终评估。
+PRISM 处理后的数据位于 `data/processed/prism/`，包含 `seed`、`feedback_pool`、`development` 和 `final_test`。历史评分保存在独立的 `labels/` 文件中；对话级 `open_feedback` 是单独的反馈查询，不会复制到每条 response 上。HelpSteer2 将同一 prompt 的回答放在同一 split，训练集被确定性拆分，官方 validation 留作 final test；五个维度的评分另存于 `data/processed/helpsteer2/labels/`。seed 中保留 helpfulness 最高的回答及并列项。
 
-进行 Qwen LoRA 验证时，使用包含 requirements-qwen.txt 的环境，设置
-ALADDIN_TASK_MODEL_BASE_PATH，并将运行器指向本地模型 snapshot。
-Qwen 适配器位于 local_experiments/aladdin/qwen_preference.py，不依赖
-独立的 LEGO 包命名空间。
-
-## 可复现性规则
-
-每次报告的运行都应记录仓库 commit、数据集 SHA-256、模型标识/revision、
-split seeds、policy seeds、反馈预算、训练预算、endpoint 模型名称以及
-是否访问 final-test。不得提交原始用户反馈、私有服务器 profile、模型
-权重或大型运行构件。
-
-## 协作流程
-
-GitHub 仓库是协议和代码变更的唯一依据。执行贡献者应：
-
-1. 从 GitHub `main` 拉取代码并记录实际运行的 commit；
-2. 执行列出的 preflight 和 smoke 命令；
-3. 只使用仓库外的数据/模型路径运行指定实验；
-4. 返回 commit、命令、日志、输出 manifest、哈希和摘要；
-5. 提交不包含数据、checkpoint、秘密或生成运行目录的 pull request。
-
-详见 CONTRIBUTING.md、docs/contributor-execution-runbook.md 和
-docs/run-report-template.md。
+这些标签只用于公开数据集回放，不是新收集的人工反馈。不要提交原始或处理后的数据集文件。

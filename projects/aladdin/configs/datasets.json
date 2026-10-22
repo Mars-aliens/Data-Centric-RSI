@@ -1,0 +1,28 @@
+{
+  "prism": {
+    "repo_id": "HannahRoseKirk/prism-alignment",
+    "repo_type": "dataset",
+    "revision": "18ab5cfb37456f4ec8cbc00212ce54cf7b1239f6",
+    "license_summary": "Human-written prompts: CC-BY-4.0; model responses: CC-BY-NC-4.0; respect original model-provider terms.",
+    "usage_requirements": [
+      "Research/educational use; do not attempt to identify or deanonymize participants.",
+      "Apply PII and moderation metadata before data enters model training or human review.",
+      "Do not redistribute downloaded raw data or include it in Git artifacts."
+    ],
+    "files": ["conversations.jsonl", "utterances.jsonl", "metadata.jsonl"],
+    "excluded_files": ["survey.jsonl"],
+    "primary_use": "user-linked feedback study and synthesis development"
+  },
+  "helpsteer2": {
+    "repo_id": "nvidia/HelpSteer2",
+    "repo_type": "dataset",
+    "revision": "990b2711a36180dd19d9c94b8627844866f8982a",
+    "license_summary": "CC-BY-4.0",
+    "usage_requirements": [
+      "Preserve all five original rating dimensions and ties.",
+      "Keep validation labels sealed until the final evaluation."
+    ],
+    "files": ["train.jsonl.gz", "validation.jsonl.gz", "preference/preference.jsonl.gz"],
+    "primary_use": "controlled feedback replay and evaluator calibration"
+  }
+}

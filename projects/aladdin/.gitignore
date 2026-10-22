@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.venv*/
 venv/
 *.egg-info/
 
@@ -12,11 +13,7 @@ checkpoints/
 runs/
 logs/
 tmp/
-local_experiments/**/runs/
-local_experiments/**/_archive/
-core_system/demo_runs/
-core_system/local_runs/
-core_system/real_local_runs/
+baselines/synthesis/*-upstream/
 
 # Local environment and credentials.
 .env

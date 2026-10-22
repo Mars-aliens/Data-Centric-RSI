@@ -1,6 +1,6 @@
 # Install this file only in the environment used for Qwen downstream training.
 # Match torch to the server CUDA driver rather than forcing a wheel here.
 torch>=2.1
-transformers>=4.40
+transformers>=4.51.0
 accelerate>=0.28
 peft>=0.10
