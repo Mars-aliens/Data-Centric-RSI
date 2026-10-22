@@ -28,7 +28,7 @@ def base_model_path(config: dict[str, Any] | None = None) -> str:
     if not isinstance(value, str) or not value or value.startswith("SET_"):
         raise ValueError(
             "Set task_model.training_config.base_model_path or "
-            "LEGO_TASK_MODEL_BASE_PATH to a local Qwen model directory"
+            "LEGO_TASK_MODEL_BASE_PATH to a local Hugging Face causal-LM model directory"
         )
     return value
 
@@ -153,13 +153,104 @@ def _configure_reproducibility(seed: int, *, deterministic: bool) -> None:
     torch.use_deterministic_algorithms(deterministic, warn_only=False)
 
 
+def _training_recipe(config: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "learning_rate": float(config.get("learning_rate", 2e-4)),
+        "max_steps": int(config.get("max_steps", 100)),
+        "gradient_accumulation_steps": max(
+            1, int(config.get("gradient_accumulation_steps", 1))
+        ),
+        "batch_size": max(
+            1, int(config.get("per_device_batch_size", config.get("batch_size", 4)))
+        ),
+        "max_length": int(config.get("max_length", 1024)),
+        "lora_r": int(config.get("lora_r", 8)),
+        "lora_alpha": int(config.get("lora_alpha", 16)),
+        "lora_dropout": float(config.get("lora_dropout", 0.05)),
+        "target_modules": list(config.get("target_modules", ["q_proj", "v_proj"])),
+    }
+
+
+def _load_trainable_model(
+    base_path: str,
+    target: torch.device,
+    *,
+    config: dict[str, Any],
+    initial_checkpoint: dict[str, Any] | None,
+    current_label_ids: dict[str, int],
+    recipe_hash: str,
+):
+    parent_adapter_path: Path | None = None
+    parent_metadata: dict[str, Any] | None = None
+    if initial_checkpoint is not None:
+        checkpoint = initial_checkpoint
+        if checkpoint.get("backend") != "qwen-lora-preference-v1":
+            raise ValueError("parent checkpoint uses an incompatible backend")
+        try:
+            parent_base = Path(str(checkpoint["base_model_path"])).resolve(strict=True)
+            current_base = Path(base_path).resolve(strict=True)
+            parent_adapter_path = Path(str(checkpoint["adapter_path"])).resolve(strict=True)
+        except (KeyError, OSError) as exc:
+            raise ValueError("parent checkpoint paths must exist") from exc
+        if parent_base != current_base:
+            raise ValueError("parent checkpoint uses a different base model path")
+        current_revision = str(config.get("base_model_revision", "unrecorded"))
+        parent_revision = str(checkpoint.get("base_model_revision", "unrecorded"))
+        if parent_revision != current_revision:
+            raise ValueError("parent checkpoint uses a different base model revision")
+        current_model_id = config.get("base_model_id")
+        parent_model_id = checkpoint.get("base_model_id")
+        if current_model_id and parent_model_id and parent_model_id != current_model_id:
+            raise ValueError("parent checkpoint uses a different base model ID")
+        if not parent_adapter_path.is_dir():
+            raise ValueError("parent adapter path must be a directory")
+        actual_hash = hash_directory(parent_adapter_path)
+        if actual_hash != checkpoint.get("adapter_hash"):
+            raise ValueError("parent adapter hash does not match its checkpoint manifest")
+        if checkpoint.get("label_ids") != current_label_ids:
+            raise ValueError("parent checkpoint label token mapping does not match")
+        if checkpoint.get("training_recipe_hash") != recipe_hash:
+            raise ValueError("parent checkpoint training recipe does not match the current run")
+        parent_metadata = {
+            "task_model_version": str(checkpoint.get("task_model_version", actual_hash[:16])),
+            "adapter_hash": actual_hash,
+        }
+
+    base_model = load_base(base_path, target)
+    if initial_checkpoint is None:
+        return get_peft_model(
+            base_model,
+            LoraConfig(
+                r=int(config.get("lora_r", 8)),
+                lora_alpha=int(config.get("lora_alpha", 16)),
+                lora_dropout=float(config.get("lora_dropout", 0.05)),
+                target_modules=list(config.get("target_modules", ["q_proj", "v_proj"])),
+                bias="none",
+                task_type="CAUSAL_LM",
+            ),
+        ), None
+
+    assert parent_adapter_path is not None and parent_metadata is not None
+    return PeftModel.from_pretrained(
+        base_model,
+        str(parent_adapter_path),
+        is_trainable=True,
+        local_files_only=True,
+    ), parent_metadata
+
+
 def train_checkpoint(
     records: list[dict[str, Any]],
     *,
     config: dict[str, Any],
     seed: int,
     output_dir: Path,
+    initial_checkpoint: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, int | float]]:
+    if output_dir.exists() and (
+        not output_dir.is_dir() or any(output_dir.iterdir())
+    ):
+        raise FileExistsError(f"checkpoint output directory is not empty: {output_dir}")
     deterministic = bool(
         config.get("deterministic", os.environ.get("LEGO_DETERMINISTIC", "0") == "1")
     )
@@ -167,36 +258,37 @@ def train_checkpoint(
     target = device()
     _configure_memory_limit(target, config)
     base_path = base_model_path(config)
-    print(f"[LEGO] Qwen Task Model: loading base model on {target}...", file=sys.stderr, flush=True)
+    model_id = str(config.get("base_model_id") or Path(base_path).name)
+    print(f"[LEGO] Task Model {model_id}: loading on {target}...", file=sys.stderr, flush=True)
     tokenizer = load_tokenizer(base_path)
     tokenizer.padding_side = "right"
     ids = label_ids(tokenizer)
-    model = load_base(base_path, target)
-    model.config.use_cache = False
-    model = get_peft_model(
-        model,
-        LoraConfig(
-            r=int(config.get("lora_r", 8)),
-            lora_alpha=int(config.get("lora_alpha", 16)),
-            lora_dropout=float(config.get("lora_dropout", 0.05)),
-            target_modules=list(config.get("target_modules", ["q_proj", "v_proj"])),
-            bias="none",
-            task_type="CAUSAL_LM",
-        ),
+    recipe = _training_recipe(config)
+    recipe_hash = hashlib.sha256(
+        json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    model, parent_checkpoint = _load_trainable_model(
+        base_path,
+        target,
+        config=config,
+        initial_checkpoint=initial_checkpoint,
+        current_label_ids=ids,
+        recipe_hash=recipe_hash,
     )
+    model.config.use_cache = False
     model.train()
-    learning_rate = float(config.get("learning_rate", 2e-4))
-    max_steps = int(config.get("max_steps", 100))
-    gradient_accumulation = max(1, int(config.get("gradient_accumulation_steps", 1)))
-    batch_size = max(1, int(config.get("per_device_batch_size", config.get("batch_size", 4))))
-    max_length = int(config.get("max_length", 1024))
+    learning_rate = recipe["learning_rate"]
+    max_steps = recipe["max_steps"]
+    gradient_accumulation = recipe["gradient_accumulation_steps"]
+    batch_size = recipe["batch_size"]
+    max_length = recipe["max_length"]
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     generator = torch.Generator().manual_seed(seed)
     start = time.perf_counter()
     optimizer.zero_grad(set_to_none=True)
     step = 0
     examples = 0
-    progress = ProgressReporter("Qwen Task Model training", max_steps, unit="steps")
+    progress = ProgressReporter(f"Task Model {model_id} training", max_steps, unit="steps")
     def make_batch(batch_records: list[dict[str, Any]]) -> dict[str, torch.Tensor]:
         sequences: list[list[int]] = []
         sequence_labels: list[list[int]] = []
@@ -252,7 +344,7 @@ def train_checkpoint(
         optimizer.step()
         optimizer.zero_grad(set_to_none=True)
     progress.finish()
-    print("[LEGO] Qwen Task Model: saving LoRA adapter...", file=sys.stderr, flush=True)
+    print(f"[LEGO] Task Model {model_id}: saving LoRA adapter...", file=sys.stderr, flush=True)
     output_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
@@ -261,9 +353,15 @@ def train_checkpoint(
     content_hash = hash_directory(output_dir)
     checkpoint = {
         "backend": "qwen-lora-preference-v1",
+        "base_model_id": model_id,
         "base_model_path": base_path,
+        "base_model_revision": str(config.get("base_model_revision", "unrecorded")),
         "adapter_path": str(output_dir.resolve()),
         "adapter_hash": content_hash,
+        "task_model_version": f"qwen-lora-{content_hash[:16]}",
+        "parent_checkpoint": parent_checkpoint,
+        "training_recipe_hash": recipe_hash,
+        "training_recipe": recipe,
         "label_ids": ids,
         "label_map": LABEL_TO_TEXT,
         "seed": seed,

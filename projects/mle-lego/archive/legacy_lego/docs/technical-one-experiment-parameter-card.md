@@ -1,5 +1,7 @@
 # 技术一实验参数冻结卡
 
+> **历史旧路线参数，仅用于复现已归档的 Harness 演化实验。** 不适用于当前长周期 T1/T2/T3 新路线；当前模型、任务和后续步骤以 `docs/model-configuration.md`、`docs/long-horizon-task-definition.md` 和 `docs/technology-one-safe-evolution-runbook.md` 为准。
+
 本文件是给服务器贡献者和实验 Issue 使用的参数模板。贡献者不得自行选择 batch、seed、模式或预算；维护者应从下列任务类型中选择一种，并把完整参数复制到 Issue。服务器本地路径、GPU、endpoint 和 profile 哈希由贡献者填写后返回。
 
 ## 1. 不可修改的协议参数

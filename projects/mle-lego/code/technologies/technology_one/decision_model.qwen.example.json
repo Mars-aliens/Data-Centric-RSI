@@ -1,0 +1,13 @@
+{
+  "decision_model": {
+    "provider": "bailian_openai_compatible",
+    "model_id": "SET_CONFIRMED_BAILIAN_QWEN3_8_FLASH_API_ID",
+    "revision": "record-api-model-id-and-call-date",
+    "api_url_env": "LEGO_POLICY_API_URL",
+    "api_key_env": "LEGO_POLICY_API_KEY",
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "max_output_tokens": 512,
+    "json_mode": true
+  }
+}

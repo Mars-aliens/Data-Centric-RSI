@@ -27,8 +27,8 @@
 
 ## 贡献者执行
 
-服务器实验必须通过 GitHub Issue 分配，并基于已记录的 commit 执行。贡献者应遵循
-`docs/contributor-execution-runbook.md`，提交所需证据包，并只报告事实，不解释方法优越性。维护者负责协议、结果解释及 `docs/current-status.md` 的更新。
+服务器实验由维护者与执行者直接协商安排，并基于已记录的 commit 和冻结协议执行。执行者应遵循
+`docs/server-quickstart.md`，保存运行报告和所需证据，并只报告事实，不解释方法优越性。维护者负责协议、结果解释及 `docs/current-status.md` 的更新。
 
 ## 不得提交到 Git 的文件
 

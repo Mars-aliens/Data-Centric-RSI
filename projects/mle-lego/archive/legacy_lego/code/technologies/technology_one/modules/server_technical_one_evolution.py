@@ -443,6 +443,7 @@ class TechnologyOneHarnessEditor:
         *,
         model_id: str,
         model_revision: str,
+        model_settings: dict[str, Any] | None = None,
         command_retries: int = 0,
         retry_backoff_seconds: float = 5.0,
         proposal_mode: str = "dependency-aware",
@@ -456,6 +457,7 @@ class TechnologyOneHarnessEditor:
         self.command = command
         self.model_id = model_id
         self.model_revision = model_revision
+        self.model_settings = dict(model_settings or {})
         self.command_retries = command_retries
         self.retry_backoff_seconds = retry_backoff_seconds
         self.proposal_mode = proposal_mode
@@ -507,7 +509,24 @@ class TechnologyOneHarnessEditor:
             response = self._call_policy(
                 {
                     "protocol": "lego-harness-edit-v1",
-                    "model": {"id": self.model_id, "revision": self.model_revision},
+                    "model": {
+                        "id": self.model_id,
+                        "revision": self.model_revision,
+                        **{
+                            key: self.model_settings[key]
+                            for key in (
+                                "provider",
+                                "api_url",
+                                "api_url_env",
+                                "api_key_env",
+                                "temperature",
+                                "top_p",
+                                "max_output_tokens",
+                                "json_mode",
+                            )
+                            if key in self.model_settings
+                        },
+                    },
                     "prompt": {"system": system_prompt, "user": final_user_prompt},
                 },
             )
@@ -749,6 +768,7 @@ def run_server_technology_one_evolution(
         _command(profile, "policy"),
         model_id=_required_string(profile, "decision_model.model_id"),
         model_revision=_required_string(profile, "decision_model.revision"),
+        model_settings=profile.get("decision_model", {}),
         command_retries=command_retries,
         retry_backoff_seconds=retry_backoff_seconds,
         proposal_mode=proposal_mode,

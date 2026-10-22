@@ -104,6 +104,7 @@ def run_server_method(
 
     decision_model = _required_string(profile, "decision_model.model_id")
     decision_revision = _required_string(profile, "decision_model.revision")
+    decision_model_settings = profile.get("decision_model", {})
     task_model = _required_string(profile, "task_model.model_id")
     evaluator_name = _required_string(profile, "evaluator.name")
     run_seed = int(profile["seeds"][0] if seed is None else seed)
@@ -152,6 +153,7 @@ def run_server_method(
             method=method,
             model_id=decision_model,
             model_revision=decision_revision,
+            model_settings=decision_model_settings,
             reflection_path=(
                 output_dir / run_id / "reflections.jsonl"
                 if method == "react-reflexion"

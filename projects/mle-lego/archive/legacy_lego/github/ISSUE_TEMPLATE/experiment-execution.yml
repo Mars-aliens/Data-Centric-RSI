@@ -74,5 +74,5 @@ body:
     id: report
     attributes:
       label: 贡献者报告
-      description: 执行后按 docs/contributor-execution-runbook.md 填写。
+      description: 执行后按 docs/run-report-template.md 填写。
       render: text

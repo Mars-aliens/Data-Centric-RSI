@@ -1,4 +1,6 @@
-# 贡献者实验执行手册
+# 旧技术一 Harness 实验执行手册归档
+
+> 本文对应旧的 `independent` / `dependency-aware-joint` Harness 实验，不是当前新技术一的执行流程。新服务器请从[服务器快速开始](server-quickstart.md)准备环境，并按[技术一安全自进化执行手册](technology-one-safe-evolution-runbook.md)运行。不要照本文复制旧 profile、GPU 编号或实验命令。
 
 本手册说明贡献者如何从 GitHub 仓库执行技术一实验并提交可审计证据。Issue 中的任务参数必须来自[技术一实验参数冻结卡](technical-one-experiment-parameter-card.md)。除非 Issue 明确授权修订协议，否则不得更改协议、随机种子、模型版本、接受规则或数据切分。
 

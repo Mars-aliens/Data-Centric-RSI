@@ -1,8 +1,8 @@
 {
-  "profile_version": "lego-server-baseline-matrix-profile-v1",
-  "profile_name": "helpsteer2-technology-one-baseline-matrix-qwen",
+  "profile_version": "lego-server-evolution-profile-v1",
+  "profile_name": "helpsteer2-technology-one-decision-llm-evolution-qwen",
   "experiment_scope": "core_matrix",
-  "server_stage": "baseline_matrix_ready",
+  "server_stage": "decision_llm_evolution_pilot",
   "task_id": "helpsteer2-preference",
   "dataset": {
     "train_jsonl": "data/helpsteer2-train.jsonl",
@@ -16,10 +16,14 @@
     "provider": "vllm_openai_compatible",
     "model_id": "Qwen/Qwen2.5-7B-Instruct",
     "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+    "api_url_env": "LEGO_POLICY_API_URL",
+    "api_key_env": "LEGO_POLICY_API_KEY",
     "system_prompt_hash": "computed_by_policy_command_at_runtime",
     "temperature": 0.0,
+    "top_p": 1.0,
     "max_context_tokens": 32768,
-    "max_output_tokens": 512
+    "max_output_tokens": 512,
+    "json_mode": true
   },
   "task_model": {
     "model_id": "Qwen3-4B-preference-lora",
@@ -31,10 +35,12 @@
       "max_length": 1024,
       "lora_r": 8,
       "lora_alpha": 16,
+      "lora_dropout": 0.05,
       "learning_rate": 0.0002,
-      "gradient_accumulation_steps": 1,
-      "per_device_batch_size": 4,
-      "deterministic": true
+      "gradient_accumulation_steps": 4,
+      "per_device_batch_size": 2,
+      "deterministic": true,
+      "max_gpu_memory_gib": 40
     }
   },
   "evaluator": {
@@ -45,21 +51,21 @@
     "policy": [
       "python3",
       "-m",
-      "local_experiments.lego.policy_command"
+      "technologies.technology_one.policy_command"
     ],
     "trainer": [
       "python3",
       "-m",
-      "local_experiments.lego.qwen_task_model_command"
+      "technologies.technology_one.qwen_task_model_command"
     ],
     "evaluator": [
       "python3",
       "-m",
-      "local_experiments.lego.qwen_evaluator_command"
+      "technologies.technology_one.qwen_evaluator_command"
     ]
   },
   "stream": {
-    "max_batches": 1,
+    "max_batches": 3,
     "train_group_budget": 1000,
     "candidate_selection_split": "held_in",
     "regression_split": "held_out",
@@ -68,11 +74,11 @@
   "budget": {
     "llm_calls": 20,
     "llm_tokens": 20000,
-    "training_steps": 100,
-    "training_seconds": 3600.0,
-    "evaluator_calls": 2,
+    "training_steps": 600,
+    "training_seconds": 18000.0,
+    "evaluator_calls": 12,
     "feedback_requests": 0,
-    "wall_clock_seconds": 7200.0
+    "wall_clock_seconds": 36000.0
   },
   "seeds": [17, 23, 29, 31, 37, 41, 43, 47, 53, 59],
   "methods": [

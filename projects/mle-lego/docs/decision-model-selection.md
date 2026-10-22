@@ -1,5 +1,7 @@
 # Decision Model 选择
 
+> 本文记录旧版 HelpSteer2 ReAct/Reflexion 对照实验的模型冻结建议，不适用于新的长周期 T1/T2/T3 路线。新路线模型安排见[模型配置](model-configuration.md)：本地 Qwen3-8B Task Model；T1 pilot 先用百炼 Qwen3.8-Flash，再按预设质量门槛决定正式冻结型号。
+
 ## 首次真实运行的冻结建议
 
 `fixed-harness-react` 和 `react-reflexion` 均使用 `Qwen/Qwen2.5-7B-Instruct` 作为 **Decision LLM**。

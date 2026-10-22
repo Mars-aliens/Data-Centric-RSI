@@ -1,5 +1,6 @@
 """Shared Action System substrate for the MLE-RSI idea prototypes."""
 
+from .evolution import CandidateVersion, DataSystemVersion, FeedbackEvent
 from .models import (
     ActionProposal,
     ArtifactRef,
@@ -20,8 +21,11 @@ __all__ = [
     "ActionProposal",
     "ArtifactRef",
     "Budget",
+    "CandidateVersion",
     "CoreRun",
+    "DataSystemVersion",
     "FeedbackRecord",
+    "FeedbackEvent",
     "RunConfig",
     "RunOrchestrator",
     "RunStatus",

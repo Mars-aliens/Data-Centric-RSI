@@ -8,6 +8,7 @@ __pycache__/
 # Private server configuration and runtime state.
 server_profile.*.json
 !server_profile.*.example.json
+server-private/
 runs/
 logs/
 tmp/

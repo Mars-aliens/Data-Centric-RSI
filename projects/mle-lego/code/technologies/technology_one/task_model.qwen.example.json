@@ -1,0 +1,18 @@
+{
+  "base_model_id": "Qwen/Qwen3-8B",
+  "base_model_path": "/models/Qwen3-8B/snapshots/SET_IMMUTABLE_SNAPSHOT",
+  "base_model_revision": "SET_IMMUTABLE_SNAPSHOT_ID",
+  "max_steps": 100,
+  "learning_rate": 0.0002,
+  "per_device_batch_size": 2,
+  "gradient_accumulation_steps": 4,
+  "max_length": 1024,
+  "lora_r": 8,
+  "lora_alpha": 16,
+  "lora_dropout": 0.05,
+  "target_modules": [
+    "q_proj",
+    "v_proj"
+  ],
+  "deterministic": true
+}

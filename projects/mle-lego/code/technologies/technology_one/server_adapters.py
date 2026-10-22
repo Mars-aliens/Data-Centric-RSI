@@ -133,6 +133,27 @@ def _arguments(raw: Any) -> dict[str, Any]:
     return raw
 
 
+def _decision_model_payload(
+    model_id: str,
+    model_revision: str,
+    settings: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    allowed = {
+        "provider",
+        "api_url",
+        "api_url_env",
+        "api_key_env",
+        "temperature",
+        "top_p",
+        "max_output_tokens",
+        "json_mode",
+    }
+    value = {"id": model_id, "revision": model_revision}
+    if settings:
+        value.update({key: settings[key] for key in allowed if key in settings})
+    return value
+
+
 class CommandPolicyAdapter(PolicyAdapter):
     """Run the server's real decision/evolution policy through JSON stdin/stdout."""
 
@@ -144,11 +165,13 @@ class CommandPolicyAdapter(PolicyAdapter):
         model_id: str,
         model_revision: str,
         reflection_path: str | Path | None = None,
+        model_settings: dict[str, Any] | None = None,
     ):
         self.command = command
         self.method = method
         self.model_id = model_id
         self.model_revision = model_revision
+        self.model_settings = dict(model_settings or {})
         self.reflections = ReflectionStore(reflection_path) if reflection_path else None
         self._action_stage = 0
 
@@ -183,7 +206,9 @@ class CommandPolicyAdapter(PolicyAdapter):
             {
                 "protocol": "lego-policy-v1",
                 "method": self.method,
-                "model": {"id": self.model_id, "revision": self.model_revision},
+                "model": _decision_model_payload(
+                    self.model_id, self.model_revision, self.model_settings
+                ),
                 "prompt": {"system": system_prompt, "user": user_prompt},
                 "eligible_reflection_ids": [item.reflection_id for item in prior],
                 "observation": to_jsonable(observation),
@@ -237,10 +262,18 @@ class CommandPolicyAdapter(PolicyAdapter):
 class CommandHarnessEditor:
     """Ask the decision model for one constrained, versioned Harness patch."""
 
-    def __init__(self, command: JsonCommand, *, model_id: str, model_revision: str):
+    def __init__(
+        self,
+        command: JsonCommand,
+        *,
+        model_id: str,
+        model_revision: str,
+        model_settings: dict[str, Any] | None = None,
+    ):
         self.command = command
         self.model_id = model_id
         self.model_revision = model_revision
+        self.model_settings = dict(model_settings or {})
 
     def propose(
         self,
@@ -260,7 +293,9 @@ class CommandHarnessEditor:
             self.command,
             {
                 "protocol": "lego-harness-edit-v1",
-                "model": {"id": self.model_id, "revision": self.model_revision},
+                "model": _decision_model_payload(
+                    self.model_id, self.model_revision, self.model_settings
+                ),
                 "prompt": {"system": system_prompt, "user": user_prompt},
             },
         )

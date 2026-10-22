@@ -57,7 +57,13 @@ def summaries_by_seed(root: Path, *, expected_seeds: Iterable[int] = TECHNOLOGY_
             continue
         if summary.get("status") not in ("complete", "completed", "COMPLETED"):
             continue
-        if seed not in found or path.stat().st_mtime > found[seed].stat().st_mtime:
+        rank = (path.stat().st_mtime_ns, str(path))
+        previous_rank = (
+            (found[seed].stat().st_mtime_ns, str(found[seed]))
+            if seed in found
+            else None
+        )
+        if previous_rank is None or rank > previous_rank:
             found[seed] = path
     missing = sorted(set(expected) - set(found))
     unexpected = sorted(set(found) - set(expected))

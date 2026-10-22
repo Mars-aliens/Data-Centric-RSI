@@ -1,7 +1,6 @@
-# Optional packages for future real-model and larger-data experiments.
-# Install this only when those components are implemented.
--r requirements.txt
+# HelpSteer2 download/preparation dependencies, in addition to the server
+# runtime. PyTorch must be installed separately for the target server.
+-r requirements-server.txt
 pandas==2.2.2
-torch==2.7.1
-transformers==4.52.4
 datasets==3.6.0
+huggingface-hub==0.32.4

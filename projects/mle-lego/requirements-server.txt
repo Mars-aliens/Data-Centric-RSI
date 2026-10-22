@@ -1,6 +1,8 @@
-# Minimal dependencies for the current normalized-JSONL LEGO smoke test.
-numpy==1.26.4
-scikit-learn==1.5.1
+# Trusted server runtime for the Qwen Task Model.
+-r requirements.txt
+accelerate==1.7.0
+peft==0.15.2
+transformers==4.52.4
 
-# The decision LLM runs in the existing vllm-serve environment.
-# The Task Model may use a separate existing GPU environment for server runs.
+# Install a CUDA-enabled PyTorch build separately, matching the server's
+# driver/platform. See docs/technology-one-safe-evolution-runbook.md.
