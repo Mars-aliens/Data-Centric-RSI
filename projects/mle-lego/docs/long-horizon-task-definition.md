@@ -112,7 +112,7 @@ runner 可选接受正整数 `max_batches`，只排程确定性 development 流�
 
 正式实验前还必须：用实际固定 revision 的数据文件生成 manifest，检查实际 group counts、类别占比、批次数和最后批大小；在真实模型和服务器上 smoke 固定流式 Qwen runner，确认预序列预测及 parent checkpoint 续训只使用 seed 加已释放反馈；将新 T1/T2/T3 runtime 接入真实分批执行、候选隔离与故障注入。HelpSteer2 标签是组内质量代理目标，不能支持个体偏好或自然漂移结论。
 
-因此，下一步是生成真实数据 manifest 并审计实际数据，再完成真实 Task Model 的 parent-checkpoint 固定流水线 smoke。通过这些门槛后，才启动新 T1/T2/T3 端到端实验。旧技术一代码和运行结果仅保留为历史归档，不作为新三技术的前置工作或验证证据。
+因此，下一步是生成真实数据 manifest 并审计实际数据，再完成真实 Task Model 的 parent-checkpoint 固定流水线 smoke。通过这些门槛后，才启动新 T1/T2/T3 端到端实验。此前技术一代码和运行结果不包含在当前 GitHub 项目中，也不作为新三技术的前置工作或验证证据。
 
 ## 9. 正式运行前还需冻结的实验参数
 

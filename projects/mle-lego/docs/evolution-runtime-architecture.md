@@ -2,7 +2,7 @@
 
 ## 目标
 
-当前研究路线是保障 Data System 长周期稳定运行。此前技术一组件演化协议和结果仅作历史归档；本架构不迁移、不覆盖旧 runner 或结果。新流程使用 `DataSystemEvolutionRuntime`，不把旧的单次 held-in 接受规则解释成新的长期版本选择方法。
+当前研究路线是保障 Data System 长周期稳定运行。此前技术一组件演化实现不包含在当前 GitHub 项目中。新流程使用 `DataSystemEvolutionRuntime`，不把旧的单次 held-in 接受规则解释成新的长期版本选择方法。
 
 ## 研究与运行顺序
 

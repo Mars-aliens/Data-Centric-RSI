@@ -10,6 +10,6 @@
 - `candidate_sandbox.py`、`candidate_shadow.py`：隔离运行、输出验证和故障注入；
 - `qwen_preference.py`：Task Model 预测、LoRA 训练和 checkpoint 续训。
 
-旧 Harness 实验材料位于 `archive/legacy_lego/`。部分旧算法模块仍被共享适配器和历史测试引用，暂留在本包中；它们不是当前实验入口。
+旧 Harness 实验实现不包含在当前项目中；本目录仅保留新长周期任务流和候选安全验证所需模块。
 
 注意：周期性多候选调度尚未实现。单候选 smoke 不能作为正式递归实验结果。

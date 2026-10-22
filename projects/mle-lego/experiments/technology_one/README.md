@@ -6,5 +6,4 @@
 
 本目录保存冻结后的实验协议版本、审计摘要和外部证据包的链接及校验值。HelpSteer2 数据、模型权重、profile、日志、运行结果和凭据不得提交到仓库。
 
-旧 Harness 组件修改、`independent`/`dependency-aware-joint` 比较和历史结果见
-[`archive/legacy_lego/`](../../archive/legacy_lego/)；它们不作为新 T1 的运行前置步骤或稳定性证据。
+此前开展过 Harness 组件修改及 `independent`/`dependency-aware-joint` 比较；相关代码、脚本和运行结果不包含在当前 GitHub 项目中，也不作为新 T1 的运行前置步骤或稳定性证据。

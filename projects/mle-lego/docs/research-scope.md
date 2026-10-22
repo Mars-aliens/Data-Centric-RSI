@@ -81,4 +81,4 @@ MLE-LEGO 的研究问题聚焦于持续运行中的系统级安全、经验治�
 
 ## 当前进度
 
-本地已具备 HelpSteer2 受控流式任务适配、固定流式 Qwen runner、Qwen parent-checkpoint 续训、候选安全门、经验生命周期、版本选择接口和跨技术 runtime 骨架。新固定流水线当前通过本地 fake-command 与合成数据测试；真实 HelpSteer2 文件/GPU smoke、T1/T2/T3 真实 runner 集成、故障注入、多随机种子和正式统计验证仍未完成。旧 Harness 组件演化实验保留为历史归档，不是新路线的前置任务或证据。详细状态见[当前状态](current-status.md)。
+本地已具备 HelpSteer2 受控流式任务适配、固定流式 Qwen runner、Qwen parent-checkpoint 续训、候选安全门、经验生命周期、版本选择接口和跨技术 runtime 骨架。新固定流水线当前通过本地 fake-command 与合成数据测试；真实 HelpSteer2 文件/GPU smoke、T1/T2/T3 真实 runner 集成、故障注入、多随机种子和正式统计验证仍未完成。此前 Harness 组件演化实验不是新路线的前置任务或证据，其旧代码不包含在当前 GitHub 项目中。详细状态见[当前状态](current-status.md)。
