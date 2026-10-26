@@ -1,8 +1,17 @@
 {
   "candidate_id": "t1-candidate-001",
-  "candidate_dir": "/path/to/immutable-candidate-bundle",
+  "sandbox_backend": "kubernetes",
+  "candidate_dir": "/mnt/lego-shared/MLE-LEGO/runs/t1-candidates/t1-clean-smoke",
   "require_proposal_manifest": true,
   "image": "registry.example/mle-lego-candidate@sha256:REPLACE_WITH_IMAGE_DIGEST",
+  "kubernetes": {
+    "namespace": "lego",
+    "shared_root": "/mnt/lego-shared",
+    "pvc_name": "lego-shared",
+    "network_policy_name": "lego-t1-deny-egress",
+    "network_policy_enforcement_verified": false,
+    "gpu_count": 1
+  },
   "command": [
     "python3",
     "-m",
@@ -16,9 +25,7 @@
     "timeout_seconds": 600,
     "memory_gib": 32,
     "cpu_cores": 4,
-    "pids_limit": 256,
-    "tmpfs_mib": 1024,
-    "gpu_devices": "SET_DIFFERENT_PHYSICAL_GPU_OR_MIG_ID"
+    "tmpfs_mib": 1024
   },
   "max_training_steps_per_batch": 100,
   "safe_environment": {

@@ -22,6 +22,7 @@ os.environ["PYTHONPATH"] = os.pathsep.join(
 from core_system.mle_core.store import ArtifactStore  # noqa: E402
 from technologies.technology_one.candidate_sandbox import (  # noqa: E402
     DockerCandidateSandbox,
+    KubernetesJobCandidateSandbox,
     SandboxLimits,
     validate_immutable_image_reference,
 )
@@ -136,7 +137,7 @@ def _check_gpu_separation(candidate_devices: str | None) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run a paired HelpSteer2 stream with a Docker-isolated T1 candidate."
+        description="Run a paired HelpSteer2 stream with an isolated T1 candidate."
     )
     parser.add_argument("--train-jsonl", required=True, type=Path)
     parser.add_argument("--validation-jsonl", required=True, type=Path)
@@ -156,6 +157,7 @@ def main() -> None:
     parser.add_argument("--prediction-batch-size", type=int, default=8)
     parser.add_argument("--command-timeout-seconds", type=float, default=3600)
     parser.add_argument("--docker-executable", default="docker")
+    parser.add_argument("--kubectl-executable", default="kubectl")
     parser.add_argument("--preflight-only", action="store_true")
     args = parser.parse_args()
 
@@ -224,12 +226,60 @@ def main() -> None:
         fault_schedule = {int(key): value for key, value in raw_faults.items()}
     except (TypeError, ValueError):
         parser.error("fault_injection keys must be non-negative batch indexes")
-    _docker_preflight(args.docker_executable)
-    _image_preflight(args.docker_executable, sandbox_image)
-    try:
-        _check_gpu_separation(limits.gpu_devices)
-    except ValueError as exc:
-        parser.error(str(exc))
+    sandbox_backend = candidate_config.get("sandbox_backend")
+    if sandbox_backend not in {"docker", "kubernetes"}:
+        parser.error("candidate config sandbox_backend must be docker or kubernetes")
+    if sandbox_backend == "docker":
+        _docker_preflight(args.docker_executable)
+        _image_preflight(args.docker_executable, sandbox_image)
+        try:
+            _check_gpu_separation(limits.gpu_devices)
+        except ValueError as exc:
+            parser.error(str(exc))
+        sandbox = DockerCandidateSandbox(
+            image=sandbox_image, limits=limits,
+            docker_executable=args.docker_executable, fault_injection=fault_schedule,
+        )
+    else:
+        kubernetes = candidate_config.get("kubernetes")
+        if not isinstance(kubernetes, dict):
+            parser.error("Kubernetes backend requires a kubernetes config object")
+        required = ("shared_root", "pvc_name", "network_policy_name")
+        if any(not isinstance(kubernetes.get(key), str) or not kubernetes[key].strip() for key in required):
+            parser.error(f"Kubernetes config must set: {', '.join(required)}")
+        if shutil.which(args.kubectl_executable) is None:
+            parser.error(f"kubectl executable not found: {args.kubectl_executable}")
+        allowed = {
+            "shared_root", "pvc_name", "network_policy_name", "namespace",
+            "gpu_count", "network_policy_enforcement_verified",
+        }
+        if set(kubernetes) - allowed:
+            parser.error(f"unsupported Kubernetes settings: {sorted(set(kubernetes) - allowed)}")
+        if "pids_limit" in limits_raw or "gpu_devices" in limits_raw:
+            parser.error(
+                "Kubernetes does not implement per-Pod pids_limit or physical gpu_devices; "
+                "remove these settings and use kubernetes.gpu_count"
+            )
+        try:
+            sandbox = KubernetesJobCandidateSandbox(
+                image=sandbox_image, limits=limits,
+                kubectl_executable=args.kubectl_executable,
+                shared_root=kubernetes["shared_root"],
+                pvc_name=kubernetes["pvc_name"],
+                network_policy_name=kubernetes["network_policy_name"],
+                namespace=kubernetes.get("namespace", "default"),
+                gpu_count=kubernetes.get("gpu_count", 0),
+                network_policy_enforcement_verified=kubernetes.get(
+                    "network_policy_enforcement_verified", False
+                ),
+                fault_injection=fault_schedule,
+            )
+            sandbox.validate_shared_path(candidate_dir)
+            sandbox.validate_shared_path(base_path)
+            sandbox.validate_shared_path(args.output_dir)
+            sandbox.preflight()
+        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
+            parser.error(f"Kubernetes candidate preflight failed: {exc}")
 
     task = prepare_helpsteer2_long_horizon_task(
         _read_jsonl(args.train_jsonl),
@@ -263,8 +313,12 @@ def main() -> None:
                         if proposal_manifest is not None
                         else None
                     ),
+                    "sandbox_backend": sandbox_backend,
                     "sandbox_image": sandbox_image,
                     "sandbox_image_pinned": True,
+                    "sandbox_configuration": (
+                        sandbox.run_configuration() if sandbox_backend == "kubernetes" else {}
+                    ),
                     "fault_injection": fault_schedule,
                     "task_model_id": task_config.get("base_model_id"),
                     "task_model_revision": revision,
@@ -283,12 +337,6 @@ def main() -> None:
     environment = candidate_config.get("safe_environment", {})
     if not all(isinstance(value, dict) for value in (component_versions, config_overrides, environment)):
         parser.error("component_versions, task_config_overrides, and safe_environment must be objects")
-    sandbox = DockerCandidateSandbox(
-        image=sandbox_image,
-        limits=limits,
-        docker_executable=args.docker_executable,
-        fault_injection=fault_schedule,
-    )
     store = ArtifactStore(args.output_dir / "t1-artifacts")
     shadow = LongHorizonCandidateShadow(
         candidate_id=candidate_id,

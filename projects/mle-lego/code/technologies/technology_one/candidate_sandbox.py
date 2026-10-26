@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import math
 import os
 import re
 import subprocess
+import tarfile
 import tempfile
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -38,8 +41,47 @@ _FAULT_INJECTION_KINDS = {
     "write_protected_parent",
 }
 _MAX_REQUEST_BYTES = 32 * 1024 * 1024
+_MAX_KUBERNETES_REQUEST_BYTES = 700 * 1024
 _MAX_STDOUT_BYTES = 4 * 1024 * 1024
 _STDERR_TAIL_BYTES = 4000
+
+# The candidate exits before the collector starts. Only the collector remains
+# alive while the trusted host retrieves the bounded output volume.
+_KUBERNETES_CAPTURE = """
+import base64, json, subprocess, sys, tempfile
+with open('/candidate-input/request.json', 'rb') as request:
+    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+        result = subprocess.run(sys.argv[1:], stdin=request, stdout=stdout, stderr=stderr)
+        stdout.seek(0)
+        data = stdout.read(4 * 1024 * 1024 + 1)
+        stderr.seek(0, 2)
+        stderr.seek(max(0, stderr.tell() - 4000))
+        print(json.dumps({
+            'returncode': result.returncode,
+            'stdout_b64': base64.b64encode(data).decode('ascii'),
+            'stderr_tail': stderr.read().decode('utf-8', errors='replace'),
+        }), flush=True)
+sys.exit(0 if result.returncode == 0 else 1)
+"""
+_KUBERNETES_ARCHIVE = """
+import pathlib, stat, sys, tarfile
+root = pathlib.Path('/candidate-output')
+paths = list(root.rglob('*'))
+if len(paths) > 10000:
+    raise ValueError('too many output files')
+total = 0
+for path in paths:
+    info = path.lstat()
+    if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+        raise ValueError('output may contain only regular files and directories')
+    if stat.S_ISREG(info.st_mode):
+        total += info.st_size
+if total > int(sys.argv[1]):
+    raise ValueError('output exceeds storage limit')
+with tarfile.open(fileobj=sys.stdout.buffer, mode='w|') as archive:
+    for path in paths:
+        archive.add(str(path), arcname=path.relative_to(root).as_posix(), recursive=False)
+"""
 
 
 def validate_immutable_image_reference(image: object) -> str:
@@ -128,6 +170,16 @@ class DockerCandidateSandbox:
     """Execute a candidate in a networkless, resource-limited Docker container."""
 
     backend_name = "docker"
+    isolation_verified = True
+
+    @property
+    def isolation_evidence(self) -> dict[str, Any]:
+        return {
+            "container_isolation": True,
+            "network_policy": "docker-network-none",
+            "read_only_root": True,
+            "resource_limits": True,
+        }
 
     def __init__(
         self,
@@ -577,6 +629,477 @@ class DockerCandidateSandbox:
                 )
             except (OSError, subprocess.TimeoutExpired):
                 pass
+
+
+class KubernetesJobCandidateSandbox:
+    """Execute candidates in restricted Kubernetes Jobs backed by a shared PVC."""
+
+    backend_name = "kubernetes"
+
+    def __init__(
+        self,
+        *,
+        image: str,
+        shared_root: str | Path,
+        pvc_name: str,
+        network_policy_name: str,
+        namespace: str = "default",
+        limits: SandboxLimits | None = None,
+        kubectl_executable: str = "kubectl",
+        gpu_count: int = 0,
+        network_policy_enforcement_verified: bool = False,
+        fault_injection: Mapping[int, str] | None = None,
+    ):
+        self.image = validate_immutable_image_reference(image)
+        if "@sha256:" not in self.image:
+            raise ValueError("Kubernetes image must use a pullable repository digest")
+        if fault_injection:
+            raise ValueError("Kubernetes fault_injection is not supported; use an empty schedule")
+        if isinstance(gpu_count, bool) or not isinstance(gpu_count, int) or gpu_count < 0:
+            raise ValueError("Kubernetes gpu_count must be a non-negative integer")
+        self.shared_root = Path(shared_root).resolve(strict=True)
+        if not self.shared_root.is_dir():
+            raise ValueError("shared_root must be a directory")
+        for name, value in (("pvc_name", pvc_name), ("namespace", namespace),
+                            ("network_policy_name", network_policy_name)):
+            if not isinstance(value, str) or not re.fullmatch(
+                r"[a-z0-9](?:[-a-z0-9.]*[a-z0-9])?", value
+            ):
+                raise ValueError(f"invalid Kubernetes {name}")
+        if not kubectl_executable.strip():
+            raise ValueError("kubectl_executable must be non-empty")
+        self.pvc_name = pvc_name
+        self.namespace = namespace
+        self.network_policy_name = network_policy_name
+        self.limits = limits or SandboxLimits()
+        if self.limits.gpu_devices is not None:
+            raise ValueError("Kubernetes uses gpu_count, not physical gpu_devices")
+        self.gpu_count = gpu_count
+        self.network_policy_enforcement_verified = network_policy_enforcement_verified
+        self.kubectl_executable = kubectl_executable
+        self.fault_injection: dict[int, str] = {}
+        self.isolation_verified = False
+        self._execution_evidence: dict[str, Any] = {}
+        self.cleanup_errors: list[str] = []
+
+    @property
+    def isolation_evidence(self) -> dict[str, Any]:
+        return {
+            "container_isolation": self.isolation_verified,
+            "network_policy": self.network_policy_name,
+            "read_only_root": True,
+            "resource_limits": True,
+            "shared_pvc": self.pvc_name,
+            "network_enforcement_basis": "administrator_verified",
+            "network_policy_enforcement_verified": self.network_policy_enforcement_verified is True,
+            "pid_limit_enforced_by_runner": False,
+            "cleanup_errors": list(self.cleanup_errors),
+            **self._execution_evidence,
+        }
+
+    def run_configuration(self) -> dict[str, Any]:
+        return {
+            "namespace": self.namespace,
+            "shared_root": str(self.shared_root),
+            "pvc_name": self.pvc_name,
+            "network_policy_name": self.network_policy_name,
+            "network_policy_enforcement_verified": self.network_policy_enforcement_verified,
+            "gpu_count": self.gpu_count,
+        }
+
+    def _run(self, args: Sequence[str], *, input_data: bytes | None = None,
+             timeout: float = 30) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run(
+            [self.kubectl_executable, "-n", self.namespace, *args],
+            input=input_data, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=timeout, check=False,
+        )
+
+    def preflight(self) -> None:
+        if self.network_policy_enforcement_verified is not True:
+            raise RuntimeError(
+                "administrator must verify CNI NetworkPolicy enforcement and set "
+                "network_policy_enforcement_verified=true"
+            )
+        for check in (
+            ("auth", "can-i", "create", "jobs"),
+            ("auth", "can-i", "get", "jobs"),
+            ("auth", "can-i", "create", "configmaps"),
+            ("auth", "can-i", "get", "pods/log"),
+            ("auth", "can-i", "get", "pods"),
+            ("auth", "can-i", "list", "pods"),
+            ("auth", "can-i", "create", "pods/exec"),
+            ("auth", "can-i", "delete", "jobs"),
+            ("auth", "can-i", "delete", "configmaps"),
+        ):
+            result = self._run(check)
+            if result.returncode or result.stdout.decode("utf-8", errors="replace").strip() != "yes":
+                raise RuntimeError(f"Kubernetes permission preflight failed: {' '.join(check)}")
+        pvc = self._json(("get", "pvc", self.pvc_name, "-o", "json"))
+        if pvc.get("status", {}).get("phase") != "Bound":
+            raise RuntimeError("Kubernetes candidate PVC must be Bound")
+        policies = self._json(("get", "networkpolicies", "-o", "json")).get("items", [])
+        selected = [
+            policy for policy in policies
+            if self._selector_matches(
+                policy.get("spec", {}).get("podSelector", {}),
+                {"app.kubernetes.io/name": "lego-t1-candidate"},
+            )
+        ]
+        expected = next(
+            (policy for policy in selected
+             if policy.get("metadata", {}).get("name") == self.network_policy_name), None
+        )
+        if (expected is None
+                or "Egress" not in expected.get("spec", {}).get("policyTypes", [])
+                or expected["spec"].get("egress", []) != []):
+            raise RuntimeError("NetworkPolicy must select T1 candidate Pods and deny all egress")
+        if any(policy.get("spec", {}).get("egress") for policy in policies):
+            raise RuntimeError(
+                "another NetworkPolicy allows egress; use a dedicated candidate namespace"
+            )
+        self._execution_evidence["network_policy_uid"] = expected.get("metadata", {}).get("uid")
+
+    def _json(self, args: Sequence[str]) -> dict[str, Any]:
+        result = self._run(args)
+        if result.returncode:
+            raise RuntimeError(
+                f"kubectl {' '.join(args)} failed: "
+                + result.stderr.decode("utf-8", errors="replace")[-_STDERR_TAIL_BYTES:]
+            )
+        value = json.loads(result.stdout)
+        if not isinstance(value, dict):
+            raise ValueError("kubectl response must be a JSON object")
+        return value
+
+    @staticmethod
+    def _selector_matches(selector: Mapping[str, Any], labels: Mapping[str, str]) -> bool:
+        if any(labels.get(key) != value for key, value in selector.get("matchLabels", {}).items()):
+            return False
+        for expression in selector.get("matchExpressions", []):
+            key, operator = expression["key"], expression["operator"]
+            values = expression.get("values", [])
+            if operator == "In" and labels.get(key) not in values:
+                return False
+            if operator == "NotIn" and labels.get(key) in values:
+                return False
+            if operator == "Exists" and key not in labels:
+                return False
+            if operator == "DoesNotExist" and key in labels:
+                return False
+            if operator not in {"In", "NotIn", "Exists", "DoesNotExist"}:
+                raise ValueError("unsupported NetworkPolicy selector")
+        return True
+
+    def validate_shared_path(self, path: str | Path) -> str:
+        """Check a present or future orchestrator path against the PVC root."""
+        resolved = Path(path).resolve()
+        try:
+            relative = resolved.relative_to(self.shared_root)
+        except ValueError as exc:
+            raise ValueError(f"Kubernetes candidate path must be inside shared_root: {resolved}") from exc
+        if not relative.parts or any(part in {".", ".."} for part in relative.parts):
+            raise ValueError("invalid PVC subPath")
+        return relative.as_posix()
+
+    def _pvc_subpath(self, path: Path) -> str:
+        return self.validate_shared_path(path.resolve(strict=True))
+
+    def execute(
+        self, *, command: Sequence[str], payload: Mapping[str, Any],
+        mounts: Sequence[SandboxMount], output_dir: str | Path,
+        environment: Mapping[str, str] | None = None,
+    ) -> SandboxResult:
+        started = time.monotonic()
+        self.isolation_verified = False
+        self._execution_evidence = {}
+        self.cleanup_errors = []
+        job_name = config_name = None
+        try:
+            if not command or any(not isinstance(item, str) or not item for item in command):
+                raise ValueError("candidate command must be a non-empty argv sequence")
+            if any(not mount.read_only for mount in mounts):
+                raise ValueError("Kubernetes source mounts must be read-only")
+            allowed_targets = {"/candidate", "/parent-checkpoint", "/models/task"}
+            if any(mount.target not in allowed_targets for mount in mounts):
+                raise ValueError("Kubernetes mount target is not an approved candidate input")
+            targets = [mount.target for mount in mounts]
+            if len(targets) != len(set(targets)):
+                raise ValueError("sandbox mount targets must be unique")
+            env = dict(environment or {})
+            for key, value in env.items():
+                if (not _ENV_NAME.fullmatch(key) or not isinstance(value, str)
+                        or "\x00" in value or key not in _SAFE_ENVIRONMENT):
+                    raise ValueError(f"sandbox environment variable is not allowlisted: {key}")
+            output = Path(output_dir).resolve()
+            self.validate_shared_path(output)
+            output.mkdir(parents=True, exist_ok=True)
+            if any(output.iterdir()):
+                raise FileExistsError(f"candidate output directory is not empty: {output}")
+            mount_specs = []
+            for index, mount in enumerate(mounts):
+                if (output == mount.source or output in mount.source.parents
+                        or mount.source in output.parents):
+                    raise ValueError("candidate output must not overlap a source mount")
+                subpath = self._pvc_subpath(mount.source)
+                mount_specs.append({
+                    "name": f"source-{index}", "target": mount.target,
+                    "subPath": subpath, "readOnly": True,
+                })
+            encoded = json.dumps(payload, ensure_ascii=True).encode("utf-8")
+            if len(encoded) > _MAX_KUBERNETES_REQUEST_BYTES:
+                return SandboxResult(
+                    "failed", self.backend_name, 0.0, None, None, None,
+                    "request_too_large",
+                    f"candidate request exceeds ConfigMap limit ({_MAX_KUBERNETES_REQUEST_BYTES} bytes)", "",
+                )
+            self.preflight()
+            token = uuid.uuid4().hex[:12]
+            job_name, config_name = f"lego-t1-{token}", f"lego-t1-input-{token}"
+            labels = {"app.kubernetes.io/name": "lego-t1-candidate"}
+            config = {
+                "apiVersion": "v1", "kind": "ConfigMap",
+                "metadata": {"name": config_name},
+                "immutable": True,
+                "binaryData": {"request.json": base64.b64encode(encoded).decode("ascii")},
+            }
+            volume_mounts = [{
+                "name": spec["name"], "mountPath": spec["target"],
+                "subPath": spec["subPath"], "readOnly": True,
+            } for spec in mount_specs]
+            volume_mounts.extend([
+                {"name": "candidate-output", "mountPath": "/candidate-output"},
+                {"name": "candidate-input", "mountPath": "/candidate-input", "readOnly": True},
+                {"name": "candidate-tmp", "mountPath": "/tmp"},
+            ])
+            resources = {
+                "requests": {"cpu": str(self.limits.cpu_cores), "memory": f"{self.limits.memory_gib}Gi"},
+                "limits": {"cpu": str(self.limits.cpu_cores), "memory": f"{self.limits.memory_gib}Gi"},
+            }
+            if self.gpu_count:
+                resources["limits"]["nvidia.com/gpu"] = self.gpu_count
+                resources["requests"]["nvidia.com/gpu"] = self.gpu_count
+            security = {
+                "allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True,
+                "runAsNonRoot": True, "runAsUser": 65532, "runAsGroup": 65532,
+                "capabilities": {"drop": ["ALL"]},
+            }
+            env.setdefault("HF_HOME", "/tmp/huggingface")
+            env.setdefault("HF_HUB_OFFLINE", "1")
+            env.setdefault("TRANSFORMERS_OFFLINE", "1")
+            container = {
+                "name": "candidate", "image": self.image,
+                "command": ["python3", "-I", "-B", "-c", _KUBERNETES_CAPTURE, *command],
+                "workingDir": "/candidate",
+                "resources": resources,
+                "securityContext": security,
+                "env": [{"name": key, "value": value} for key, value in sorted(env.items())],
+                "volumeMounts": volume_mounts,
+            }
+            volumes = [
+                {"name": spec["name"], "persistentVolumeClaim": {
+                    "claimName": self.pvc_name, "readOnly": True,
+                }}
+                for spec in mount_specs
+            ]
+            volumes.extend([
+                {"name": "candidate-output", "emptyDir": {"medium": "Memory", "sizeLimit": f"{self.limits.tmpfs_mib}Mi"}},
+                {"name": "candidate-input", "configMap": {"name": config_name}},
+                {"name": "candidate-tmp", "emptyDir": {"medium": "Memory", "sizeLimit": f"{self.limits.tmpfs_mib}Mi"}},
+            ])
+            collector = {
+                "name": "collector", "image": self.image,
+                "command": ["python3", "-I", "-B", "-c", "import time; time.sleep(3600)"],
+                "workingDir": "/", "securityContext": security,
+                "resources": {
+                    "requests": {"cpu": "100m", "memory": "128Mi"},
+                    "limits": {"cpu": "1", "memory": "256Mi"},
+                },
+                "volumeMounts": [{
+                    "name": "candidate-output", "mountPath": "/candidate-output",
+                    "readOnly": True,
+                }],
+            }
+            job = {
+                "apiVersion": "batch/v1", "kind": "Job",
+                "metadata": {"name": job_name, "labels": labels},
+                "spec": {
+                    "backoffLimit": 0,
+                    "activeDeadlineSeconds": math.ceil(self.limits.timeout_seconds) + 180,
+                    "ttlSecondsAfterFinished": 3600,
+                    "template": {
+                        "metadata": {"labels": labels},
+                        "spec": {
+                            "restartPolicy": "Never", "automountServiceAccountToken": False,
+                            "enableServiceLinks": False,
+                            "securityContext": {
+                                "seccompProfile": {"type": "RuntimeDefault"},
+                                "fsGroup": 65532,
+                            },
+                            "initContainers": [container],
+                            "containers": [collector], "volumes": volumes,
+                        },
+                    },
+                },
+            }
+            for manifest in (config, job):
+                applied = self._run(("create", "-f", "-"), input_data=json.dumps(manifest).encode())
+                if applied.returncode:
+                    raise RuntimeError(applied.stderr.decode("utf-8", errors="replace")[-_STDERR_TAIL_BYTES:])
+            pod, terminated = self._wait_candidate(job_name)
+            pod_name = pod["metadata"]["name"]
+            logs = self._run((
+                "logs", pod_name, "-c", "candidate",
+                f"--limit-bytes={2 * _MAX_STDOUT_BYTES}",
+            ))
+            if logs.returncode:
+                raise RuntimeError("could not read Kubernetes candidate logs")
+            envelope = json.loads(logs.stdout)
+            stderr = str(envelope.get("stderr_tail", ""))[-_STDERR_TAIL_BYTES:]
+            returncode = envelope.get("returncode")
+            if terminated.get("exitCode") != 0 or returncode != 0:
+                return SandboxResult(
+                    "failed", self.backend_name, time.monotonic() - started,
+                    returncode, None, None, "nonzero_exit",
+                    f"Kubernetes candidate exited with status {returncode}", stderr,
+                )
+            stdout = base64.b64decode(envelope["stdout_b64"], validate=True)
+            if len(stdout) > _MAX_STDOUT_BYTES:
+                return SandboxResult("failed", self.backend_name, time.monotonic()-started,
+                                     0, None, None, "stdout_limit_exceeded",
+                                     "candidate stdout exceeded output limit", stderr)
+            response = json.loads(stdout)
+            if not isinstance(response, dict):
+                raise ValueError("candidate stdout must decode to a JSON object")
+            image_status = next(
+                item for item in pod["status"]["initContainerStatuses"]
+                if item.get("name") == "candidate"
+            )
+            image_id = image_status.get("imageID", "")
+            digest = self.image.split("@", 1)[1]
+            if not image_id.endswith(digest):
+                raise RuntimeError("candidate runtime image ID does not match its pinned digest")
+            if not pod["metadata"].get("uid"):
+                raise RuntimeError("candidate Pod UID is missing from execution evidence")
+            self._copy_output(pod_name, output)
+            self._execution_evidence.update({
+                "job_name": job_name,
+                "pod_uid": pod["metadata"].get("uid"),
+                "image_id": image_id,
+                "candidate_exit_code": terminated["exitCode"],
+                "output_retrieved": True,
+            })
+            self.isolation_verified = True
+            return SandboxResult(
+                "completed", self.backend_name, time.monotonic()-started, 0, response,
+                hashlib.sha256(stdout).hexdigest(), None, None, stderr,
+            )
+        except TimeoutError as exc:
+            return SandboxResult(
+                "timed_out", self.backend_name, time.monotonic() - started,
+                None, None, None, "timeout", str(exc), "",
+            )
+        except (OSError, subprocess.TimeoutExpired, ValueError, RuntimeError,
+                KeyError, TypeError, IndexError, StopIteration, tarfile.TarError) as exc:
+            return SandboxResult(
+                "failed", self.backend_name, time.monotonic()-started, None, None, None,
+                "sandbox_unavailable" if isinstance(exc, (OSError, subprocess.TimeoutExpired)) else "sandbox_error",
+                str(exc), "",
+            )
+        finally:
+            for resource in (
+                f"job/{job_name}" if job_name else None,
+                f"configmap/{config_name}" if config_name else None,
+            ):
+                if resource is not None:
+                    try:
+                        deleted = self._run((
+                            "delete", resource, "--ignore-not-found=true",
+                            "--cascade=foreground", "--wait=true", "--timeout=20s",
+                        ))
+                        if deleted.returncode:
+                            self.cleanup_errors.append(f"could not delete {resource}")
+                    except (OSError, subprocess.TimeoutExpired) as exc:
+                        self.cleanup_errors.append(f"could not delete {resource}: {exc}")
+            if self.cleanup_errors:
+                self.isolation_verified = False
+
+    def _wait_candidate(self, job_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        deadline = time.monotonic() + self.limits.timeout_seconds
+        while time.monotonic() < deadline:
+            pods = self._json((
+                "get", "pods", "-l", f"job-name={job_name}", "-o", "json",
+            )).get("items", [])
+            for pod in pods:
+                status = pod.get("status", {})
+                for container in status.get("initContainerStatuses", []):
+                    if container.get("name") != "candidate":
+                        continue
+                    terminated = container.get("state", {}).get("terminated")
+                    if terminated is not None:
+                        collector_ready = any(
+                            entry.get("name") == "collector"
+                            and "running" in entry.get("state", {})
+                            for entry in status.get("containerStatuses", [])
+                        )
+                        if terminated.get("exitCode") != 0 or collector_ready:
+                            return pod, terminated
+                if status.get("phase") == "Failed":
+                    raise RuntimeError(f"Kubernetes candidate Pod failed: {status.get('reason', '')}")
+            job = self._json(("get", f"job/{job_name}", "-o", "json"))
+            if job.get("status", {}).get("failed", 0):
+                raise RuntimeError("Kubernetes candidate Job failed")
+            time.sleep(min(1.0, max(0.0, deadline - time.monotonic())))
+        raise TimeoutError("Kubernetes candidate exceeded its scheduling/execution deadline")
+
+    def _copy_output(self, pod_name: str, output: Path) -> None:
+        limit = self.limits.tmpfs_mib * 1024 * 1024
+        with tempfile.TemporaryFile() as archive:
+            result = subprocess.run(
+                [self.kubectl_executable, "-n", self.namespace, "exec", pod_name,
+                 "-c", "collector", "--", "python3", "-I", "-B", "-c",
+                 _KUBERNETES_ARCHIVE, str(limit)],
+                stdout=archive, stderr=subprocess.PIPE, timeout=120, check=False,
+            )
+            if result.returncode:
+                raise RuntimeError("could not retrieve Kubernetes candidate output")
+            archive.seek(0, 2)
+            if archive.tell() > limit + 16 * 1024 * 1024:
+                raise ValueError("candidate output archive exceeds its storage limit")
+            archive.seek(0)
+            self._extract_output(archive, output, limit)
+
+    @staticmethod
+    def _extract_output(archive: Any, output: Path, limit: int) -> None:
+        total = count = 0
+        with tarfile.open(fileobj=archive, mode="r|") as contents:
+            for member in contents:
+                count += 1
+                if count > 10000:
+                    raise ValueError("candidate output contains too many files")
+                relative = Path(member.name)
+                if (relative.is_absolute() or relative.drive or ".." in relative.parts
+                        or "\\" in member.name or ":" in member.name):
+                    raise ValueError("candidate output path escapes its output directory")
+                destination = (output / relative).resolve()
+                if destination != output and output not in destination.parents:
+                    raise ValueError("candidate output path escapes its output directory")
+                if member.isdir():
+                    destination.mkdir(parents=True, exist_ok=True)
+                elif member.isfile():
+                    total += member.size
+                    if member.size < 0 or total > limit:
+                        raise ValueError("candidate output exceeds its storage limit")
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    source = contents.extractfile(member)
+                    if source is None:
+                        raise ValueError("candidate output file is missing")
+                    with source, destination.open("xb") as handle:
+                        for block in iter(lambda: source.read(1024 * 1024), b""):
+                            handle.write(block)
+                else:
+                    raise ValueError("candidate output may contain only regular files and directories")
+
 
 def hash_directory(path: str | Path) -> str:
     root = Path(path).resolve(strict=True)

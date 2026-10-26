@@ -21,6 +21,7 @@ from .candidate_gate import (
 from .candidate_proposal import read_candidate_manifest
 from .candidate_sandbox import (
     DockerCandidateSandbox,
+    KubernetesJobCandidateSandbox,
     SandboxMount,
     SandboxResult,
     hash_directory,
@@ -74,7 +75,7 @@ class LongHorizonCandidateShadow:
         candidate_id: str,
         candidate_dir: str | Path,
         output_dir: str | Path,
-        sandbox: DockerCandidateSandbox,
+        sandbox: DockerCandidateSandbox | KubernetesJobCandidateSandbox,
         command: Sequence[str],
         store: ArtifactStore,
         component_versions: Mapping[str, str] | None = None,
@@ -164,6 +165,11 @@ class LongHorizonCandidateShadow:
             "require_proposal_manifest": self.require_proposal_manifest,
             "sandbox_backend": self.sandbox.backend_name,
             "sandbox_image": self.sandbox.image,
+            "sandbox_configuration": (
+                self.sandbox.run_configuration()
+                if isinstance(self.sandbox, KubernetesJobCandidateSandbox)
+                else {}
+            ),
             "fault_injection": {
                 str(key): value
                 for key, value in sorted(self.sandbox.fault_injection.items())
@@ -626,7 +632,13 @@ class LongHorizonCandidateShadow:
             "candidate_parent_hash_after": parent_hash_after,
             "candidate_output_dir": str(output_dir),
             "candidate_output_limit_mib": self.sandbox.limits.tmpfs_mib,
-            "container_isolation": result.backend == "docker",
+            "container_isolation": bool(
+                result.backend in {"docker", "kubernetes"}
+                and result.backend == self.sandbox.backend_name
+                and getattr(self.sandbox, "isolation_verified", False)
+                and getattr(self.sandbox, "isolation_evidence", {}).get("container_isolation")
+            ),
+            "isolation_evidence": getattr(self.sandbox, "isolation_evidence", {}),
             "response_error": response_error,
             "reported_cost": cost,
             "mount_policy": {
@@ -645,7 +657,7 @@ class LongHorizonCandidateShadow:
         }
         checklist = SafetyChecklist(
             sandboxed=(
-                result.backend == "docker"
+                result.backend in {"docker", "kubernetes"}
                 and evidence["container_isolation"]
                 and result.failure_code != "sandbox_unavailable"
             ),

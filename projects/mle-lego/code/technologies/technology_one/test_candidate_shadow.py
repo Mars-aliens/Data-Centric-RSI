@@ -16,7 +16,15 @@ from .candidate_shadow import LongHorizonCandidateShadow
 class FakeSandbox:
     backend_name = "docker"
     image = "fake@sha256:" + "a" * 64
+    isolation_verified = True
     limits = SandboxLimits(timeout_seconds=60, memory_gib=4, cpu_cores=2)
+
+    @property
+    def isolation_evidence(self):
+        return {
+            "container_isolation": self.backend_name in {"docker", "kubernetes"}
+            and self.isolation_verified
+        }
 
     def __init__(
         self, *, fail: bool = False, invalid: bool = False, backend_name: str = "docker"
@@ -210,6 +218,20 @@ class CandidateShadowTests(unittest.TestCase):
         self.assertEqual(result["gate"]["evidence"]["sandbox_backend"], "local")
         self.assertFalse(result["gate"]["evidence"]["container_isolation"])
         self.assertFalse(result["candidate_checkpoint_retained"])
+
+    def test_k8s_regression_gate_requires_execution_evidence(self) -> None:
+        for verified in (False, True):
+            with self.subTest(verified=verified), tempfile.TemporaryDirectory() as temporary:
+                sandbox = FakeSandbox(backend_name="kubernetes")
+                sandbox.isolation_verified = verified
+                shadow, base, adapter = self._setup(Path(temporary), sandbox)
+                result = self._run_batch(shadow, base, adapter)
+                self.assertEqual(
+                    result["status"], "eligible_for_observation" if verified else "rejected"
+                )
+                self.assertEqual(result["gate"]["evidence"]["container_isolation"], verified)
+                if not verified:
+                    self.assertIn("sandboxed", result["gate"]["failed_checks"])
 
     def test_candidate_retains_only_the_latest_active_checkpoint(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

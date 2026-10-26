@@ -1,73 +1,42 @@
 # 技术一执行手册
 
-先完成[服务器快速开始](server-quickstart.md)第 1～5 步。以下命令均在 `projects/mle-lego` 目录执行。本手册只执行到 T1 clean smoke 的 `4/4`，完成后停止。
+同步待验证代码后，沿用服务器现有 Python 环境、数据和模型路径，按以下步骤重跑 T1 smoke。候选 JSON 需兼容本次 K8s 后端，由预检核验。完成 `4/4` 并检查结果后停止。
 
-## 1. 构建 clean fixture
+## 1. 预检并运行 4/4
 
-```bash
-export PYTORCH_BASE_IMAGE="<CUDA PyTorch镜像>@sha256:<64位小写digest>"
-export T1_CANDIDATE_IMAGE_TAG="mle-lego-t1-candidate:locked"
-bash scripts/build_t1_candidate_image.sh
-
-"$TRAIN_PY" scripts/create_t1_smoke_candidate.py \
-  --source-dir "$LEGO_ROOT/code" \
-  --output-dir "$LEGO_ROOT/runs/t1-candidates/t1-clean-smoke" \
-  --candidate-id t1-clean-smoke
-```
-
-复制 `code/technologies/technology_one/candidate_shadow.example.json`：
+在已有服务器会话中执行。命令自动生成新的 run ID 和输出目录。
 
 ```bash
-cp code/technologies/technology_one/candidate_shadow.example.json \
-  "$LEGO_ROOT/server-private/t1-clean-smoke.json"
-```
+cd "$LEGO_ROOT"
 
-修改 `server-private/t1-clean-smoke.json`：
+T1_RUN_ID="t1-k8s-smoke-$(date +%Y%m%d-%H%M%S)"
+T1_OUTPUT="$LEGO_ROOT/runs/t1-smoke/$T1_RUN_ID"
 
-```text
-candidate_id = t1-clean-smoke
-candidate_dir = 填写该目录在服务器上的实际绝对路径（不要原样填写 $LEGO_ROOT）
-image = 上一步输出的不可变 image_id
-limits.gpu_devices = 与 stable 不同的空闲 GPU 或 MIG
-require_proposal_manifest = true
-```
-
-确认 `server-private/task-model-smoke.json` 中的模型路径、不可变 revision 和 `max_steps=1` 正确。stable、candidate 必须使用不同 GPU/MIG。
-
-## 2. 预检并运行 4/4
-
-```bash
-export CUDA_VISIBLE_DEVICES="<stable物理GPU编号>"
-export LEGO_TASK_MODEL_DEVICE=cuda
-export T1_RUN_ID="t1-clean-seed-17"
-export T1_OUTPUT="$LEGO_ROOT/runs/t1-smoke/$T1_RUN_ID"
-
-"$TRAIN_PY" scripts/run_long_horizon_t1_qwen.py \
-  --train-jsonl "$LEGO_ROOT/data/helpsteer2-train.jsonl" \
-  --validation-jsonl "$LEGO_ROOT/data/helpsteer2-validation.jsonl" \
-  --task-config-json "$LEGO_ROOT/server-private/task-model-smoke.json" \
-  --candidate-config-json "$LEGO_ROOT/server-private/t1-clean-smoke.json" \
-  --output-dir "$T1_OUTPUT" --run-id "$T1_RUN_ID" \
-  --seed 17 --stream-seed 17 --groups-per-batch 50 --feedback-delay 2 \
-  --max-batches 4 --preflight-only
-```
-
-确认输出为 `preflight_ok`，且镜像、模型 revision、数据路径和 GPU 分配正确。
-
-重新运行同一命令，删除最后的 `--preflight-only`：
-
-```bash
-"$TRAIN_PY" scripts/run_long_horizon_t1_qwen.py \
-  --train-jsonl "$LEGO_ROOT/data/helpsteer2-train.jsonl" \
-  --validation-jsonl "$LEGO_ROOT/data/helpsteer2-validation.jsonl" \
-  --task-config-json "$LEGO_ROOT/server-private/task-model-smoke.json" \
-  --candidate-config-json "$LEGO_ROOT/server-private/t1-clean-smoke.json" \
-  --output-dir "$T1_OUTPUT" --run-id "$T1_RUN_ID" \
-  --seed 17 --stream-seed 17 --groups-per-batch 50 --feedback-delay 2 \
+T1_ARGS=(
+  --train-jsonl "$LEGO_ROOT/data/helpsteer2-train.jsonl"
+  --validation-jsonl "$LEGO_ROOT/data/helpsteer2-validation.jsonl"
+  --task-config-json "$LEGO_ROOT/server-private/task-model-smoke.json"
+  --candidate-config-json "$LEGO_ROOT/server-private/t1-clean-smoke.json"
+  --output-dir "$T1_OUTPUT"
+  --run-id "$T1_RUN_ID"
+  --seed 17
+  --stream-seed 17
+  --groups-per-batch 50
+  --feedback-delay 2
   --max-batches 4
+)
+
+"$TRAIN_PY" scripts/run_long_horizon_t1_qwen.py \
+  "${T1_ARGS[@]}" --preflight-only &&
+"$TRAIN_PY" scripts/run_long_horizon_t1_qwen.py \
+  "${T1_ARGS[@]}"
 ```
 
-## 3. 检查并停止
+预检通过才自动启动 4/4。确认输出为 `preflight_ok`、`sandbox_backend=kubernetes`，且模型 revision、路径和 GPU 请求数量正确。预检失败就停止排查，不能回退 local。
+
+命令完成后，在同一 shell 执行第 2 节检查。
+
+## 2. 检查并停止
 
 检查 `$T1_OUTPUT/stable/summary.json`。以下命令逐项核验 stable 完成 4 批、candidate 每批均通过隔离门、延迟反馈已释放、candidate 用反馈训练并保留自己的 checkpoint，且没有使用 held-out/final-test：
 
@@ -95,9 +64,14 @@ checks = {
         candidate_indexes == [0, 1, 2, 3]
         and all(item.get("status") == "eligible_for_observation" for item in candidate)
     ),
-    "docker_isolation_4_of_4": all(
-        item.get("gate", {}).get("evidence", {}).get("sandbox_backend") == "docker"
+    "kubernetes_isolation_4_of_4": len(candidate) == 4 and all(
+        item.get("gate", {}).get("evidence", {}).get("sandbox_backend") == "kubernetes"
         and item.get("gate", {}).get("evidence", {}).get("container_isolation") is True
+        and item.get("gate", {}).get("evidence", {}).get("stable_parent_unchanged") is True
+        and item.get("gate", {}).get("evidence", {}).get("isolation_evidence", {}).get("output_retrieved") is True
+        and item.get("gate", {}).get("evidence", {}).get("isolation_evidence", {}).get("network_policy_enforcement_verified") is True
+        and item.get("gate", {}).get("evidence", {}).get("isolation_evidence", {}).get("pod_uid")
+        and item.get("gate", {}).get("evidence", {}).get("isolation_evidence", {}).get("cleanup_errors") == []
         for item in candidate
     ),
     "delayed_feedback_released": any(
@@ -120,3 +94,5 @@ PY
 ```
 
 以上条件全部满足后，本阶段完成。
+
+失败时先读取 candidate-shadow/trials 下当前批次的 failure_code、error 和 gate.evidence，再检查对应 Job/Pod 事件。未被自动清理的资源名称保存在 isolation_evidence.cleanup_errors 中；请管理员处理后再运行。ConfigMap 请求上限为 700 KiB，超过会拒绝；本阶段不增加 batch size 或反馈载荷。
