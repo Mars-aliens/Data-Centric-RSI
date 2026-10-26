@@ -102,9 +102,14 @@ class LongHorizonCandidateShadow:
             ).hexdigest()
         self.require_proposal_manifest = require_proposal_manifest
         self.candidate_artifact_hash = hash_directory(self.candidate_dir)
+        if getattr(sandbox, "backend_name", None) not in {"docker", "kubernetes"}:
+            raise ValueError(
+                "candidate sandbox backend must be docker or kubernetes; "
+                "local candidate execution is not allowed"
+            )
+        self.sandbox = sandbox
         self.root = Path(output_dir).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
-        self.sandbox = sandbox
         self.command = tuple(command)
         if not self.command or any(not item for item in self.command):
             raise ValueError("candidate command must be a non-empty argv sequence")
@@ -141,6 +146,7 @@ class LongHorizonCandidateShadow:
                 "candidate_artifact_sha256": self.candidate_artifact_hash,
                 "command": list(self.command),
                 "component_versions": self.component_versions,
+                "sandbox_backend": self.sandbox.backend_name,
                 "sandbox_image": self.sandbox.image,
                 "task_config_overrides": self.task_config_overrides,
             }
@@ -681,18 +687,24 @@ class LongHorizonCandidateShadow:
                 self._terminal_failure = ",".join(assessment.failed_checks)
             gate_result = assessment.to_dict()
         else:
+            if not checklist.passed:
+                self._gate_status = CandidateGateStatus.REJECTED.value
+                self._terminal_failure = (
+                    response_error
+                    or result.failure_code
+                    or ",".join(checklist.failed_checks)
+                )
             gate_result = {
                 "status": self._gate_status,
-                "failed_checks": [],
+                "failed_checks": (
+                    [] if checklist.passed else list(checklist.failed_checks)
+                ),
                 "candidate_id": self.candidate_id,
                 "candidate_version": candidate_version.version.version_id,
                 "parent_version": candidate_version.version.parent_version_id,
                 "evidence": evidence,
             }
             if not checklist.passed:
-                self._terminal_failure = response_error or result.failure_code or ",".join(
-                    checklist.failed_checks
-                )
                 self.store.append_event(
                     "candidate_shadow_failed",
                     {**gate_result, "terminal_failure": self._terminal_failure},

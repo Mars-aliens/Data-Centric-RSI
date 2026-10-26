@@ -27,12 +27,14 @@ class FakeSandbox:
         }
 
     def __init__(
-        self, *, fail: bool = False, invalid: bool = False, backend_name: str = "docker"
+        self, *, fail: bool = False, invalid: bool = False, backend_name: str = "docker",
+        result_backend: str | None = None,
     ):
         self.calls: list[dict[str, Any]] = []
         self.fail = fail
         self.invalid = invalid
         self.backend_name = backend_name
+        self.result_backend = result_backend or backend_name
 
     def execute(self, *, command, payload, mounts, output_dir, environment=None):
         self.calls.append(payload)
@@ -40,7 +42,7 @@ class FakeSandbox:
         if self.fail:
             return SandboxResult(
                 status="timed_out",
-                backend=self.backend_name,
+                backend=self.result_backend,
                 elapsed_seconds=60,
                 returncode=None,
                 response=None,
@@ -86,7 +88,7 @@ class FakeSandbox:
             response["predictions"][0]["prediction"] = "invalid-label"
         return SandboxResult(
             status="completed",
-            backend=self.backend_name,
+            backend=self.result_backend,
             elapsed_seconds=1,
             returncode=0,
             response=response,
@@ -208,9 +210,17 @@ class CandidateShadowTests(unittest.TestCase):
     def test_successful_local_backend_is_rejected_by_safety_gate(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            shadow, base, adapter = self._setup(
-                root, FakeSandbox(backend_name="local")
-            )
+            sandbox = FakeSandbox(backend_name="local")
+            with self.assertRaisesRegex(ValueError, "local candidate execution is not allowed"):
+                self._setup(root, sandbox)
+        self.assertEqual(sandbox.calls, [])
+        self.assertFalse((root / "shadow").exists())
+
+    def test_sandbox_backend_mismatch_is_rejected_even_if_candidate_succeeds(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sandbox = FakeSandbox(result_backend="local")
+            shadow, base, adapter = self._setup(root, sandbox)
             result = self._run_batch(shadow, base, adapter)
 
         self.assertEqual(result["status"], "rejected")
@@ -218,6 +228,33 @@ class CandidateShadowTests(unittest.TestCase):
         self.assertEqual(result["gate"]["evidence"]["sandbox_backend"], "local")
         self.assertFalse(result["gate"]["evidence"]["container_isolation"])
         self.assertFalse(result["candidate_checkpoint_retained"])
+
+    def test_backend_change_invalidates_candidate_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            docker_shadow, _, _ = self._setup(root, FakeSandbox(backend_name="docker"))
+            kubernetes_shadow, _, _ = self._setup(
+                root, FakeSandbox(backend_name="kubernetes")
+            )
+
+        self.assertNotEqual(docker_shadow.candidate_hash, kubernetes_shadow.candidate_hash)
+
+    def test_lost_isolation_after_admission_rejects_that_batch_explicitly(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sandbox = FakeSandbox()
+            shadow, base, adapter = self._setup(root, sandbox)
+            admitted = self._run_batch(shadow, base, adapter, batch_index=2)
+            sandbox.backend_name = "local"
+            sandbox.result_backend = "local"
+            sandbox.isolation_verified = False
+            rejected = self._run_batch(shadow, base, adapter, batch_index=3)
+
+        self.assertEqual(admitted["status"], "eligible_for_observation")
+        self.assertEqual(rejected["status"], "rejected")
+        self.assertEqual(rejected["gate"]["status"], "rejected")
+        self.assertEqual(rejected["gate"]["failed_checks"], ["sandboxed"])
+        self.assertEqual(rejected["gate"]["evidence"]["sandbox_backend"], "local")
 
     def test_k8s_regression_gate_requires_execution_evidence(self) -> None:
         for verified in (False, True):
