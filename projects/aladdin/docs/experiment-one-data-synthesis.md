@@ -1,62 +1,23 @@
-# 实验一：数据合成运行步骤
+# 实验一：补充运行指令
 
-先完成 [`服务器配置步骤`](server-quickstart.md)第 1～3 步。以下命令在 Linux 项目目录中执行。
+以下命令在已配置好的 Linux Aladdin 项目环境中执行。原 pilot 已完成 seed `17、23、29`；本次只补跑 seed `37、41、43、47、53`，共 15 个单元。完成后与 pilot 合并，得到 24 个单元的统一结果。
 
-本环节比较固定 seed、固定提示词合成和改造版 Self-Instruct（兼容时可另跑改造版 Evol-Instruct）。本阶段不请求人工反馈、不让人逐条判断候选、也不根据人工意见筛选生成数据。命令中使用的 PRISM development 标签是预先存在的离线评价数据，只在训练后计算结果指标；它不会提供给合成器作为反馈。论文 baseline 来源、固定上游 commit 和“项目适配”与“原论文复现”的区别见 [`baselines/synthesis/UPSTREAMS.md`](../baselines/synthesis/UPSTREAMS.md)。
-
-## 1. 设置模型、数据和输出路径
+## 1. 设置结果路径
 
 ```bash
 set -euo pipefail
 
-export ALADDIN_ROOT="$PWD"
-export PYTHON_BIN="$ALADDIN_ROOT/.venv/bin/python"
-export PYTHONPATH="$ALADDIN_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+export PILOT_RESULT="$ALADDIN_ROOT/runs/experiment-one-data-synthesis-prism-20261026-024147/result.json"
+export RUN="$ALADDIN_ROOT/runs/experiment-one-data-synthesis-prism-extension-$(date +%Y%m%d-%H%M%S)"
+export COMBINED_RUN="$ALADDIN_ROOT/runs/experiment-one-data-synthesis-prism-combined-$(date +%Y%m%d-%H%M%S)"
 
-export CUDA_VISIBLE_DEVICES=<训练用GPU编号>
-export ALADDIN_ENDPOINT="<OpenAI兼容Chat Completions地址>"
-export ALADDIN_MODEL="Qwen/Qwen3-8B"
-export MODEL_REVISION="b968826d9c46dd6066d109eabc6255188de91218"
-export SEED_DATA="$ALADDIN_ROOT/data/processed/prism/seed.jsonl"
-export DEV_DATA="$ALADDIN_ROOT/data/processed/prism/development.jsonl"
-export DEV_LABELS="$ALADDIN_ROOT/data/processed/prism/labels/development-labels.jsonl"
-
-export BASE_MODEL="Qwen/Qwen3-8B"
-export RUN="$ALADDIN_ROOT/runs/experiment-one-data-synthesis-prism-$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$RUN"
+test -f "$PILOT_RESULT"
+mkdir -p "$RUN" "$COMBINED_RUN"
 ```
 
-## 2. 检查生成 API
+如果 pilot 结果不在上述目录，只修改 `PILOT_RESULT`，指向原来的 `result.json`。
 
-```bash
-export API_CHECK="$ALADDIN_ROOT/runs/api-check-$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$API_CHECK"
-
-"$PYTHON_BIN" -m experiments.synthesis \
-  --data "$SEED_DATA" \
-  --output "$API_CHECK/fixed-prompt.jsonl" \
-  --strategy fixed-prompt --count 1 --seed 17 \
-  --max-tokens 512 --temperature 0.7 \
-  --endpoint "$ALADDIN_ENDPOINT" --model "$ALADDIN_MODEL"
-
-"$PYTHON_BIN" - "$API_CHECK/fixed-prompt.jsonl.manifest.json" <<'PY'
-import json
-import sys
-
-manifest = json.load(open(sys.argv[1], encoding="utf-8"))
-usage = manifest["generation_usage"]
-assert manifest["status"] == "completed"
-assert manifest["model"] == "Qwen/Qwen3-8B"
-assert usage["requests"] == 1
-assert usage["reported_requests"] == 1
-assert usage["complete_usage_requests"] == 1
-assert usage["prompt_tokens"] > 0
-assert usage["completion_tokens"] >= 0
-print("API check: passed")
-PY
-```
-
-## 3. 运行完整实验矩阵
+## 2. 补跑剩余 15 个单元
 
 ```bash
 "$PYTHON_BIN" -u -m experiments.experiment_one_synthesis \
@@ -69,7 +30,7 @@ PY
   --endpoint "$ALADDIN_ENDPOINT" \
   --model "$ALADDIN_MODEL" \
   --strategies seed-only fixed-prompt self-instruct \
-  --seeds 17 23 29 \
+  --seeds 37 41 43 47 53 \
   --seed-group-limit 32 \
   --development-group-limit 64 \
   --development-selection-seed 101 \
@@ -92,25 +53,72 @@ PY
   2>&1 | tee "$RUN/run.log"
 ```
 
-## 4. 汇总结果
+## 3. 合并并分析 24 个单元
 
 ```bash
-"$PYTHON_BIN" -m scripts.analyze_experiment_one_synthesis "$RUN/result.json" \
-  | tee "$RUN/summary.txt"
-```
-
-## 5. 检查运行状态
-
-```bash
-"$PYTHON_BIN" - "$RUN/result.json" <<'PY'
+"$PYTHON_BIN" - "$PILOT_RESULT" "$RUN/result.json" "$COMBINED_RUN/result.json" <<'PY'
+import copy
 import json
 import sys
+from datetime import datetime, timezone
 
-result = json.load(open(sys.argv[1], encoding="utf-8"))
-print("status:", result.get("status"))
-print("results:", len(result.get("results", [])), "/ 9")
-print("final_test_accessed:", result.get("data", {}).get("final_test_accessed"))
+pilot_path, extension_path, output_path = sys.argv[1:]
+pilot = json.load(open(pilot_path, encoding="utf-8"))
+extension = json.load(open(extension_path, encoding="utf-8"))
+
+assert pilot["status"] == extension["status"] == "completed"
+assert pilot["protocol"] == extension["protocol"]
+assert pilot["data"]["final_test_accessed"] is False
+assert extension["data"]["final_test_accessed"] is False
+
+def comparable_config(result):
+    config = copy.deepcopy(result["configuration"])
+    config.pop("output", None)
+    config.pop("seeds", None)
+    return config
+
+assert comparable_config(pilot) == comparable_config(extension), (
+    "运行配置不一致，停止合并"
+)
+for key in (
+    "seed_sha256",
+    "split_manifest_sha256",
+    "development_sha256",
+    "development_labels_sha256",
+    "dataset_revision",
+    "development_groups_sha256",
+):
+    assert pilot["data"].get(key) == extension["data"].get(key), (
+        f"数据不一致: {key}"
+    )
+for key in ("runner_sha256", "training_module_sha256", "synthesis_module_sha256"):
+    assert pilot["runtime"].get(key) == extension["runtime"].get(key), (
+        f"代码版本不一致: {key}"
+    )
+
+results = pilot["results"] + extension["results"]
+keys = [(row["strategy"], row["seed"]) for row in results]
+seeds = [17, 23, 29, 37, 41, 43, 47, 53]
+strategies = ["seed-only", "fixed-prompt", "self-instruct"]
+expected = {(strategy, seed) for strategy in strategies for seed in seeds}
+assert len(results) == 24 and len(set(keys)) == 24 and set(keys) == expected
+
+combined = copy.deepcopy(pilot)
+combined["run_id"] = "pilot-plus-extension"
+combined["configuration"]["seeds"] = seeds
+combined["configuration"]["output"] = output_path.rsplit("/", 1)[0]
+combined["data"]["seed_groups_selected_by_run_seed"].update(
+    extension["data"]["seed_groups_selected_by_run_seed"]
+)
+combined["results"] = results
+combined["completed_at_utc"] = datetime.now(timezone.utc).isoformat()
+
+with open(output_path, "w", encoding="utf-8") as f:
+    json.dump(combined, f, ensure_ascii=False, indent=2)
+    f.write("\n")
+print("合并完成:", len(results), "/ 24")
 PY
-```
 
-确认输出为 `status: completed`、`results: 9 / 9`、`final_test_accessed: False`。汇总文件为 `$RUN/summary.txt`；逐条件结果、候选、训练数据和 LoRA adapter 保存在 `$RUN/` 下。
+"$PYTHON_BIN" -m scripts.analyze_experiment_one_synthesis "$COMBINED_RUN/result.json" \
+  | tee "$COMBINED_RUN/summary.txt"
+```
