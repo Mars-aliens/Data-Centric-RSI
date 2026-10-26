@@ -95,6 +95,11 @@ checks = {
         candidate_indexes == [0, 1, 2, 3]
         and all(item.get("status") == "eligible_for_observation" for item in candidate)
     ),
+    "docker_isolation_4_of_4": all(
+        item.get("gate", {}).get("evidence", {}).get("sandbox_backend") == "docker"
+        and item.get("gate", {}).get("evidence", {}).get("container_isolation") is True
+        for item in candidate
+    ),
     "delayed_feedback_released": any(
         batch.get("released_feedback_ids") for batch in batches
     ),

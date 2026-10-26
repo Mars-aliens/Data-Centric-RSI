@@ -18,10 +18,13 @@ class FakeSandbox:
     image = "fake@sha256:" + "a" * 64
     limits = SandboxLimits(timeout_seconds=60, memory_gib=4, cpu_cores=2)
 
-    def __init__(self, *, fail: bool = False, invalid: bool = False):
+    def __init__(
+        self, *, fail: bool = False, invalid: bool = False, backend_name: str = "docker"
+    ):
         self.calls: list[dict[str, Any]] = []
         self.fail = fail
         self.invalid = invalid
+        self.backend_name = backend_name
 
     def execute(self, *, command, payload, mounts, output_dir, environment=None):
         self.calls.append(payload)
@@ -29,7 +32,7 @@ class FakeSandbox:
         if self.fail:
             return SandboxResult(
                 status="timed_out",
-                backend="docker",
+                backend=self.backend_name,
                 elapsed_seconds=60,
                 returncode=None,
                 response=None,
@@ -75,7 +78,7 @@ class FakeSandbox:
             response["predictions"][0]["prediction"] = "invalid-label"
         return SandboxResult(
             status="completed",
-            backend="docker",
+            backend=self.backend_name,
             elapsed_seconds=1,
             returncode=0,
             response=response,
@@ -193,6 +196,20 @@ class CandidateShadowTests(unittest.TestCase):
                 self.assertIsNone(result["predictions"])
                 self.assertEqual(before, after)
                 self.assertEqual(result["gate"]["status"], "rejected")
+
+    def test_successful_local_backend_is_rejected_by_safety_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            shadow, base, adapter = self._setup(
+                root, FakeSandbox(backend_name="local")
+            )
+            result = self._run_batch(shadow, base, adapter)
+
+        self.assertEqual(result["status"], "rejected")
+        self.assertEqual(result["gate"]["failed_checks"], ["sandboxed"])
+        self.assertEqual(result["gate"]["evidence"]["sandbox_backend"], "local")
+        self.assertFalse(result["gate"]["evidence"]["container_isolation"])
+        self.assertFalse(result["candidate_checkpoint_retained"])
 
     def test_candidate_retains_only_the_latest_active_checkpoint(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

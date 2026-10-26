@@ -609,6 +609,7 @@ class LongHorizonCandidateShadow:
         isolated = stable_hash_before == stable_hash_after and parent_hash_before == parent_hash_after
         evidence = {
             **result.to_dict(),
+            "sandbox_backend": result.backend,
             "candidate_artifact_sha256": self.candidate_artifact_hash,
             "proposal_manifest_sha256": self.proposal_manifest_sha256,
             "proposal_base_version_id": (
@@ -625,6 +626,7 @@ class LongHorizonCandidateShadow:
             "candidate_parent_hash_after": parent_hash_after,
             "candidate_output_dir": str(output_dir),
             "candidate_output_limit_mib": self.sandbox.limits.tmpfs_mib,
+            "container_isolation": result.backend == "docker",
             "response_error": response_error,
             "reported_cost": cost,
             "mount_policy": {
@@ -642,7 +644,11 @@ class LongHorizonCandidateShadow:
             },
         }
         checklist = SafetyChecklist(
-            sandboxed=result.backend == "docker" and result.failure_code != "sandbox_unavailable",
+            sandboxed=(
+                result.backend == "docker"
+                and evidence["container_isolation"]
+                and result.failure_code != "sandbox_unavailable"
+            ),
             executable=result.status == "completed" and result.returncode == 0,
             data_valid=data_valid,
             interfaces_valid=schema_valid and lineage_valid,
