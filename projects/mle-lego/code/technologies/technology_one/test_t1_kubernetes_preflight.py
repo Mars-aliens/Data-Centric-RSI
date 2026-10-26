@@ -65,8 +65,6 @@ class KubernetesPreflightRegressionTests(unittest.TestCase):
         with patch.object(RUNNER.sys, "argv", argv), patch.object(
             RUNNER.shutil, "which", return_value="kubectl"
         ), patch.object(
-            RUNNER, "_docker_preflight"
-        ) as docker, patch.object(
             RUNNER.KubernetesJobCandidateSandbox, "preflight"
         ) as preflight, patch.object(
             RUNNER, "_read_jsonl", return_value=[]
@@ -78,10 +76,9 @@ class KubernetesPreflightRegressionTests(unittest.TestCase):
                 code = 0
             except SystemExit as exc:
                 code = exc.code
-        docker.assert_not_called()
         return code, stdout.getvalue(), stderr.getvalue(), preflight.call_count
 
-    def test_k8s_regression_preflight_uses_kubernetes_without_docker(self):
+    def test_k8s_regression_preflight_uses_kubernetes(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             task, config = self._configuration(root)

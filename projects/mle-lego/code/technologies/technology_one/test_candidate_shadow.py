@@ -14,7 +14,7 @@ from .candidate_shadow import LongHorizonCandidateShadow
 
 
 class FakeSandbox:
-    backend_name = "docker"
+    backend_name = "kubernetes"
     image = "fake@sha256:" + "a" * 64
     isolation_verified = True
     limits = SandboxLimits(timeout_seconds=60, memory_gib=4, cpu_cores=2)
@@ -22,12 +22,11 @@ class FakeSandbox:
     @property
     def isolation_evidence(self):
         return {
-            "container_isolation": self.backend_name in {"docker", "kubernetes"}
-            and self.isolation_verified
+            "container_isolation": self.backend_name == "kubernetes" and self.isolation_verified
         }
 
     def __init__(
-        self, *, fail: bool = False, invalid: bool = False, backend_name: str = "docker",
+        self, *, fail: bool = False, invalid: bool = False, backend_name: str = "kubernetes",
         result_backend: str | None = None,
     ):
         self.calls: list[dict[str, Any]] = []
@@ -211,7 +210,7 @@ class CandidateShadowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             sandbox = FakeSandbox(backend_name="local")
-            with self.assertRaisesRegex(ValueError, "local candidate execution is not allowed"):
+            with self.assertRaisesRegex(ValueError, "candidate sandbox backend must be kubernetes"):
                 self._setup(root, sandbox)
         self.assertEqual(sandbox.calls, [])
         self.assertFalse((root / "shadow").exists())
@@ -228,16 +227,6 @@ class CandidateShadowTests(unittest.TestCase):
         self.assertEqual(result["gate"]["evidence"]["sandbox_backend"], "local")
         self.assertFalse(result["gate"]["evidence"]["container_isolation"])
         self.assertFalse(result["candidate_checkpoint_retained"])
-
-    def test_backend_change_invalidates_candidate_identity(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            docker_shadow, _, _ = self._setup(root, FakeSandbox(backend_name="docker"))
-            kubernetes_shadow, _, _ = self._setup(
-                root, FakeSandbox(backend_name="kubernetes")
-            )
-
-        self.assertNotEqual(docker_shadow.candidate_hash, kubernetes_shadow.candidate_hash)
 
     def test_lost_isolation_after_admission_rejects_that_batch_explicitly(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

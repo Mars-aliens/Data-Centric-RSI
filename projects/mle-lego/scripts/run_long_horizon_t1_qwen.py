@@ -21,7 +21,6 @@ os.environ["PYTHONPATH"] = os.pathsep.join(
 
 from core_system.mle_core.store import ArtifactStore  # noqa: E402
 from technologies.technology_one.candidate_sandbox import (  # noqa: E402
-    DockerCandidateSandbox,
     KubernetesJobCandidateSandbox,
     SandboxLimits,
     validate_immutable_image_reference,
@@ -76,65 +75,6 @@ def _object(path: Path) -> dict[str, Any]:
     return value
 
 
-def _docker_preflight(executable: str) -> None:
-    if shutil.which(executable) is None:
-        raise RuntimeError(f"Docker executable not found: {executable}")
-    try:
-        result = subprocess.run(
-            [executable, "info"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            timeout=20,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError("Docker daemon preflight failed") from exc
-    if result.returncode:
-        message = result.stderr.decode("utf-8", errors="replace")[-2000:]
-        raise RuntimeError(f"Docker daemon is unavailable: {message}")
-
-
-def _image_preflight(executable: str, image: str) -> None:
-    try:
-        result = subprocess.run(
-            [executable, "image", "inspect", image],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            timeout=20,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError("candidate image preflight failed") from exc
-    if result.returncode:
-        message = result.stderr.decode("utf-8", errors="replace")[-2000:]
-        raise RuntimeError(f"candidate image is not available locally: {message}")
-
-
-def _check_gpu_separation(candidate_devices: str | None) -> None:
-    if candidate_devices is None:
-        return
-    if "CUDA_VISIBLE_DEVICES" not in os.environ:
-        raise ValueError(
-            "set CUDA_VISIBLE_DEVICES explicitly for the stable branch before assigning "
-            "candidate GPU devices"
-        )
-    stable_raw = os.environ["CUDA_VISIBLE_DEVICES"].strip()
-    if not stable_raw:
-        return
-    if stable_raw == "all" or candidate_devices == "all":
-        raise ValueError(
-            "stable and candidate branches cannot share an unrestricted GPU assignment; "
-            "use distinct physical GPU IDs or separate MIG devices"
-        )
-    stable_ids = {item.strip() for item in stable_raw.split(",") if item.strip()}
-    candidate_ids = {item.strip() for item in candidate_devices.split(",") if item.strip()}
-    if stable_ids.intersection(candidate_ids):
-        raise ValueError(
-            "candidate GPU must be separate from the stable branch GPU; "
-            "Docker does not enforce GPU memory quotas"
-        )
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run a paired HelpSteer2 stream with an isolated T1 candidate."
@@ -156,7 +96,6 @@ def main() -> None:
     )
     parser.add_argument("--prediction-batch-size", type=int, default=8)
     parser.add_argument("--command-timeout-seconds", type=float, default=3600)
-    parser.add_argument("--docker-executable", default="docker")
     parser.add_argument("--kubectl-executable", default="kubectl")
     parser.add_argument("--preflight-only", action="store_true")
     args = parser.parse_args()
@@ -227,59 +166,47 @@ def main() -> None:
     except (TypeError, ValueError):
         parser.error("fault_injection keys must be non-negative batch indexes")
     sandbox_backend = candidate_config.get("sandbox_backend")
-    if sandbox_backend not in {"docker", "kubernetes"}:
-        parser.error("candidate config sandbox_backend must be docker or kubernetes")
-    if sandbox_backend == "docker":
-        _docker_preflight(args.docker_executable)
-        _image_preflight(args.docker_executable, sandbox_image)
-        try:
-            _check_gpu_separation(limits.gpu_devices)
-        except ValueError as exc:
-            parser.error(str(exc))
-        sandbox = DockerCandidateSandbox(
-            image=sandbox_image, limits=limits,
-            docker_executable=args.docker_executable, fault_injection=fault_schedule,
+    if sandbox_backend != "kubernetes":
+        parser.error("candidate config sandbox_backend must be kubernetes")
+    kubernetes = candidate_config.get("kubernetes")
+    if not isinstance(kubernetes, dict):
+        parser.error("Kubernetes backend requires a kubernetes config object")
+    required = ("shared_root", "pvc_name", "network_policy_name")
+    if any(not isinstance(kubernetes.get(key), str) or not kubernetes[key].strip() for key in required):
+        parser.error(f"Kubernetes config must set: {', '.join(required)}")
+    if shutil.which(args.kubectl_executable) is None:
+        parser.error(f"kubectl executable not found: {args.kubectl_executable}")
+    allowed = {
+        "shared_root", "pvc_name", "network_policy_name", "namespace",
+        "gpu_count", "network_policy_enforcement_verified",
+    }
+    if set(kubernetes) - allowed:
+        parser.error(f"unsupported Kubernetes settings: {sorted(set(kubernetes) - allowed)}")
+    if "pids_limit" in limits_raw or "gpu_devices" in limits_raw:
+        parser.error(
+            "Kubernetes does not implement per-Pod pids_limit or physical gpu_devices; "
+            "remove these settings and use kubernetes.gpu_count"
         )
-    else:
-        kubernetes = candidate_config.get("kubernetes")
-        if not isinstance(kubernetes, dict):
-            parser.error("Kubernetes backend requires a kubernetes config object")
-        required = ("shared_root", "pvc_name", "network_policy_name")
-        if any(not isinstance(kubernetes.get(key), str) or not kubernetes[key].strip() for key in required):
-            parser.error(f"Kubernetes config must set: {', '.join(required)}")
-        if shutil.which(args.kubectl_executable) is None:
-            parser.error(f"kubectl executable not found: {args.kubectl_executable}")
-        allowed = {
-            "shared_root", "pvc_name", "network_policy_name", "namespace",
-            "gpu_count", "network_policy_enforcement_verified",
-        }
-        if set(kubernetes) - allowed:
-            parser.error(f"unsupported Kubernetes settings: {sorted(set(kubernetes) - allowed)}")
-        if "pids_limit" in limits_raw or "gpu_devices" in limits_raw:
-            parser.error(
-                "Kubernetes does not implement per-Pod pids_limit or physical gpu_devices; "
-                "remove these settings and use kubernetes.gpu_count"
-            )
-        try:
-            sandbox = KubernetesJobCandidateSandbox(
-                image=sandbox_image, limits=limits,
-                kubectl_executable=args.kubectl_executable,
-                shared_root=kubernetes["shared_root"],
-                pvc_name=kubernetes["pvc_name"],
-                network_policy_name=kubernetes["network_policy_name"],
-                namespace=kubernetes.get("namespace", "default"),
-                gpu_count=kubernetes.get("gpu_count", 0),
-                network_policy_enforcement_verified=kubernetes.get(
-                    "network_policy_enforcement_verified", False
-                ),
-                fault_injection=fault_schedule,
-            )
-            sandbox.validate_shared_path(candidate_dir)
-            sandbox.validate_shared_path(base_path)
-            sandbox.validate_shared_path(args.output_dir)
-            sandbox.preflight()
-        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
-            parser.error(f"Kubernetes candidate preflight failed: {exc}")
+    try:
+        sandbox = KubernetesJobCandidateSandbox(
+            image=sandbox_image, limits=limits,
+            kubectl_executable=args.kubectl_executable,
+            shared_root=kubernetes["shared_root"],
+            pvc_name=kubernetes["pvc_name"],
+            network_policy_name=kubernetes["network_policy_name"],
+            namespace=kubernetes.get("namespace", "default"),
+            gpu_count=kubernetes.get("gpu_count", 0),
+            network_policy_enforcement_verified=kubernetes.get(
+                "network_policy_enforcement_verified", False
+            ),
+            fault_injection=fault_schedule,
+        )
+        sandbox.validate_shared_path(candidate_dir)
+        sandbox.validate_shared_path(base_path)
+        sandbox.validate_shared_path(args.output_dir)
+        sandbox.preflight()
+    except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
+        parser.error(f"Kubernetes candidate preflight failed: {exc}")
 
     task = prepare_helpsteer2_long_horizon_task(
         _read_jsonl(args.train_jsonl),

@@ -126,6 +126,6 @@ export LEGO_POLICY_API_KEY="<从密钥管理器注入>"
 
 ## 技术一候选
 
-候选提案命令在可信本地进程中调用 Decision LLM，再把无凭据的候选源码 bundle 交给 Docker。Decision API 凭据不会传入容器。候选镜像必须用 digest 固定；稳定分支与候选分支若都使用 GPU，分配不同物理 GPU 或 MIG 设备。Docker 不提供 GPU 显存硬配额。
+候选提案命令在可信本地进程中调用 Decision LLM，再把无凭据的候选源码 bundle 交给 Kubernetes Job。Decision API 凭据不会传入 Pod。候选镜像必须用 digest 固定；稳定分支与候选分支若都使用 GPU，分配不同物理 GPU 或 MIG 设备。由 Kubernetes 分配明确的 GPU 请求。
 
 完整的 T1 参数、命令和结果判读见[技术一安全自进化执行手册](technology-one-safe-evolution-runbook.md)。

@@ -20,7 +20,6 @@ from .candidate_gate import (
 )
 from .candidate_proposal import read_candidate_manifest
 from .candidate_sandbox import (
-    DockerCandidateSandbox,
     KubernetesJobCandidateSandbox,
     SandboxMount,
     SandboxResult,
@@ -75,7 +74,7 @@ class LongHorizonCandidateShadow:
         candidate_id: str,
         candidate_dir: str | Path,
         output_dir: str | Path,
-        sandbox: DockerCandidateSandbox | KubernetesJobCandidateSandbox,
+        sandbox: KubernetesJobCandidateSandbox,
         command: Sequence[str],
         store: ArtifactStore,
         component_versions: Mapping[str, str] | None = None,
@@ -102,10 +101,10 @@ class LongHorizonCandidateShadow:
             ).hexdigest()
         self.require_proposal_manifest = require_proposal_manifest
         self.candidate_artifact_hash = hash_directory(self.candidate_dir)
-        if getattr(sandbox, "backend_name", None) not in {"docker", "kubernetes"}:
+        if getattr(sandbox, "backend_name", None) != "kubernetes":
             raise ValueError(
-                "candidate sandbox backend must be docker or kubernetes; "
-                "local candidate execution is not allowed"
+                "candidate sandbox backend must be kubernetes; "
+                "local and non-Kubernetes candidate execution is not allowed"
             )
         self.sandbox = sandbox
         self.root = Path(output_dir).resolve()
@@ -639,7 +638,7 @@ class LongHorizonCandidateShadow:
             "candidate_output_dir": str(output_dir),
             "candidate_output_limit_mib": self.sandbox.limits.tmpfs_mib,
             "container_isolation": bool(
-                result.backend in {"docker", "kubernetes"}
+                result.backend == "kubernetes"
                 and result.backend == self.sandbox.backend_name
                 and getattr(self.sandbox, "isolation_verified", False)
                 and getattr(self.sandbox, "isolation_evidence", {}).get("container_isolation")
@@ -663,7 +662,7 @@ class LongHorizonCandidateShadow:
         }
         checklist = SafetyChecklist(
             sandboxed=(
-                result.backend in {"docker", "kubernetes"}
+                result.backend == "kubernetes"
                 and evidence["container_isolation"]
                 and result.failure_code != "sandbox_unavailable"
             ),
