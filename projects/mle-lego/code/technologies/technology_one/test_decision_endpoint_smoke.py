@@ -26,9 +26,13 @@ class DecisionEndpointSmokeTests(unittest.TestCase):
                 "rationale": "Connectivity smoke.",
                 "edits": [
                     {
-                        "path": "smoke.py",
+                        "path": "candidate_strategy.json",
                         "operation": "write",
-                        "content": "VALUE = 1",
+                        "content": (
+                            '{"schema":"lego-t1-data-strategy-v1","data_policy":'
+                            '{"min_input_chars":1,"deduplicate_inputs":true,'
+                            '"max_feedback_examples":null}}'
+                        ),
                     }
                 ],
             },
@@ -49,22 +53,26 @@ class DecisionEndpointSmokeTests(unittest.TestCase):
                 {"decision_model": {"provider": "bailian_openai_compatible"}}
             )
 
-    def test_rejects_valid_schema_that_does_not_follow_smoke_instruction(self) -> None:
+    def test_rejects_valid_strategy_that_does_not_follow_smoke_instruction(self) -> None:
         response = {
             "proposal": {
                 "rationale": "Different edit.",
                 "edits": [
                     {
-                        "path": "other.py",
+                        "path": "candidate_strategy.json",
                         "operation": "write",
-                        "content": "VALUE = 2",
+                        "content": (
+                            '{"schema":"lego-t1-data-strategy-v1","data_policy":'
+                            '{"min_input_chars":5,"deduplicate_inputs":true,'
+                            '"max_feedback_examples":null}}'
+                        ),
                     }
                 ],
             },
             "cost": {"llm_calls": 1, "llm_tokens": 20},
         }
         with patch.object(smoke_decision_endpoint, "call_endpoint", return_value=response):
-            with self.assertRaisesRegex(ValueError, "requested smoke edit"):
+            with self.assertRaisesRegex(ValueError, "requested smoke policy"):
                 smoke_decision_endpoint.smoke_decision_endpoint(
                     {"decision_model": {"model_id": "test-model"}}
                 )

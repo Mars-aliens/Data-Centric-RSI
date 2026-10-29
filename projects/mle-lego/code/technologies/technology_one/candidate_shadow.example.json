@@ -1,19 +1,10 @@
 {
   "candidate_id": "t1-candidate-001",
-  "sandbox_backend": "kubernetes",
-  "candidate_dir": "/mnt/lego-shared/MLE-LEGO/runs/t1-candidates/t1-clean-smoke",
+  "sandbox_backend": "local_shadow",
+  "candidate_dir": "./t1-candidates/t1-clean-smoke",
   "require_proposal_manifest": true,
-  "image": "registry.example/mle-lego-candidate@sha256:REPLACE_WITH_IMAGE_DIGEST",
-  "kubernetes": {
-    "namespace": "lego",
-    "shared_root": "/mnt/lego-shared",
-    "pvc_name": "lego-shared",
-    "network_policy_name": "lego-t1-deny-egress",
-    "network_policy_enforcement_verified": false,
-    "gpu_count": 1
-  },
   "command": [
-    "python3",
+    "python",
     "-m",
     "technologies.technology_one.long_horizon_candidate_qwen_command"
   ],

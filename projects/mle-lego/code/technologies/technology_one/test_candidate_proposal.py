@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +16,13 @@ from .candidate_proposal import (
     validate_candidate_proposal,
     write_candidate_bundle,
 )
+from .candidate_strategy import DEFAULT_STRATEGY
+
+
+def strategy(**policy):
+    return json.dumps({"schema": "lego-t1-data-strategy-v1", "data_policy": {
+        **DEFAULT_STRATEGY["data_policy"], **policy
+    }}, sort_keys=True) + "\n"
 
 
 class CandidateProposalTests(unittest.TestCase):
@@ -23,9 +31,9 @@ class CandidateProposalTests(unittest.TestCase):
             "rationale": "A bounded candidate change for the stream.",
             "edits": [
                 {
-                    "path": "candidate.py",
+                    "path": "candidate_strategy.json",
                     "operation": "write",
-                    "content": "candidate = True\n",
+                    "content": strategy(),
                     **edit,
                 }
             ],
@@ -53,7 +61,7 @@ class CandidateProposalTests(unittest.TestCase):
             validate_candidate_proposal(
                 {
                     "rationale": "bounded",
-                    "edits": [{"path": "candidate.py", "operation": "write", "content": "x" * 300_000}],
+                    "edits": [{"path": "candidate_strategy.json", "operation": "write", "content": "x" * 300_000}],
                 },
                 candidate_id="t1-candidate-01",
                 base_version_id="runtime-stable",
@@ -64,7 +72,7 @@ class CandidateProposalTests(unittest.TestCase):
             root = Path(temporary)
             source = root / "source"
             source.mkdir()
-            (source / "candidate.py").write_text("candidate = False\n", encoding="utf-8")
+            (source / "candidate_strategy.json").write_text(strategy(), encoding="utf-8")
             (source / ".env.local").write_text("SECRET=value\n", encoding="utf-8")
             (source / "dataset.jsonl").write_text('{"target":"secret"}\n', encoding="utf-8")
             (source / "runs").mkdir()
@@ -84,7 +92,7 @@ class CandidateProposalTests(unittest.TestCase):
                 proposal_cost={"llm_calls": 1, "llm_tokens": 50},
             )
 
-            self.assertEqual((destination / "candidate.py").read_text(encoding="utf-8"), "candidate = True\n")
+            self.assertEqual(json.loads((destination / "candidate_strategy.json").read_text(encoding="utf-8"))["schema"], "lego-t1-data-strategy-v1")
             self.assertFalse((destination / ".env.local").exists())
             self.assertFalse((destination / "dataset.jsonl").exists())
             self.assertFalse((destination / "runs").exists())
@@ -92,7 +100,7 @@ class CandidateProposalTests(unittest.TestCase):
             self.assertEqual(read_candidate_manifest(destination), manifest)
             self.assertEqual(manifest["candidate_id"], "t1-candidate-01")
 
-            (destination / "candidate.py").write_text("tampered = True\n", encoding="utf-8")
+            (destination / "candidate_strategy.json").write_text("{}\n", encoding="utf-8")
             with self.assertRaisesRegex(CandidateProposalError, "do not match"):
                 read_candidate_manifest(destination)
 
@@ -108,7 +116,7 @@ class CandidateProposalTests(unittest.TestCase):
                 "edits": [{"path": "directory.txt", "operation": "delete"}],
             }
 
-            with self.assertRaisesRegex(CandidateProposalError, "only remove files"):
+            with self.assertRaisesRegex(CandidateProposalError, "only update candidate_strategy.json"):
                 write_candidate_bundle(
                     base_dir=source,
                     output_dir=destination,
@@ -128,7 +136,7 @@ class CandidateProposalTests(unittest.TestCase):
             root = Path(temporary)
             source = root / "source"
             source.mkdir()
-            (source / "candidate.py").write_text("pass\n", encoding="utf-8")
+            (source / "candidate_strategy.json").write_text(strategy(), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "must not overlap"):
                 write_candidate_bundle(
                     base_dir=source,
@@ -148,17 +156,21 @@ class CandidateProposalTests(unittest.TestCase):
             except (OSError, NotImplementedError):
                 self.skipTest("symlinks are unavailable in this Windows environment")
             with self.assertRaisesRegex(CandidateProposalError, "symlink"):
-                build_candidate_prompt(
+                write_candidate_bundle(
                     base_dir=source,
-                    observation={"event": "regression"},
+                    output_dir=root / "candidate",
+                    proposal=self._proposal(),
                     candidate_id="t1-candidate-01",
                     base_version_id="runtime-stable",
+                    decision_model={},
+                    prompt_hashes={},
+                    proposal_cost={},
                 )
 
     def test_candidate_observation_rejects_unreleased_labels_and_evaluation_splits(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
-            (source / "runner.py").write_text("pass\n", encoding="utf-8")
+            (source / "candidate_strategy.json").write_text(strategy(), encoding="utf-8")
             for observation in (
                 {"current_batch": {"target": "preferred"}},
                 {"metrics": {"held-out": {"accuracy": 0.9}}},
@@ -189,14 +201,12 @@ class CandidateProposalTests(unittest.TestCase):
             root = Path(temporary)
             source = root / "source"
             source.mkdir()
-            (source / "candidate.py").write_text(
-                "candidate = True\n", encoding="utf-8", newline="\n"
-            )
+            (source / "candidate_strategy.json").write_text(strategy(), encoding="utf-8", newline="\n")
             destination = root / "candidate"
             proposal = {
                 "rationale": "Write the source file without changing it.",
                 "edits": [
-                    {"path": "candidate.py", "operation": "write", "content": "candidate = True\n"}
+                    {"path": "candidate_strategy.json", "operation": "write", "content": strategy()}
                 ],
             }
 
@@ -218,7 +228,7 @@ class CandidateProposalTests(unittest.TestCase):
             root = Path(temporary)
             source = root / "code"
             source.mkdir()
-            (source / "candidate.py").write_text("candidate = True\n", encoding="utf-8")
+            (source / "candidate_strategy.json").write_text(strategy(), encoding="utf-8")
             output = root / "candidate-output"
             responses = [
                 {"proposal": {"rationale": "invalid", "edits": []}, "cost": {"llm_calls": 1, "llm_tokens": 5}},
@@ -226,7 +236,7 @@ class CandidateProposalTests(unittest.TestCase):
                     "proposal": {
                         "rationale": "Change one bounded runtime rule.",
                         "edits": [
-                            {"path": "candidate.py", "operation": "write", "content": "candidate = False\n"}
+                            {"path": "candidate_strategy.json", "operation": "write", "content": strategy(min_input_chars=5)}
                         ],
                     },
                     "cost": {"llm_calls": 1, "llm_tokens": 9},

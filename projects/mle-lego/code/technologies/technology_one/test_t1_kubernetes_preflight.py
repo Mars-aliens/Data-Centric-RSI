@@ -26,6 +26,11 @@ class KubernetesPreflightRegressionTests(unittest.TestCase):
         candidate = root / "candidate"
         base = root / "model"
         candidate.mkdir()
+        (candidate / "candidate_strategy.json").write_text(
+            '{"schema":"lego-t1-data-strategy-v1","data_policy":'
+            '{"min_input_chars":1,"deduplicate_inputs":true,"max_feedback_examples":null}}',
+            encoding="utf-8",
+        )
         base.mkdir()
         task = {
             "base_model_path": str(base), "base_model_revision": "immutable-snapshot-v1",
@@ -36,7 +41,9 @@ class KubernetesPreflightRegressionTests(unittest.TestCase):
             "require_proposal_manifest": False,
             "sandbox_backend": "kubernetes",
             "image": "registry.example/candidate@sha256:" + "a" * 64,
-            "command": ["python3", "run.py"],
+            "command": [
+                "python3", "-m", "technologies.technology_one.long_horizon_candidate_qwen_command"
+            ],
             "kubernetes": {
                 "shared_root": str(root), "pvc_name": "lego-shared",
                 "network_policy_name": "lego-t1-deny-egress",

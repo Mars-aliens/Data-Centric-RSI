@@ -118,7 +118,7 @@ export LEGO_POLICY_API_KEY="<从密钥管理器注入>"
 3. **Task Model smoke**：用 Qwen3-8B 做短训练、预测、adapter 保存和 parent-checkpoint 恢复，确认标签 token/LoRA target modules/显存正常。固定同一 Task Model 给 stable/candidate 两个分支。
 4. **Decision LLM smoke**：按控制台确认的 Qwen3.8-Flash API ID 运行 `scripts/smoke_decision_endpoint.py`，验证鉴权、JSON/schema 和真实 token 成本；随后用少量候选提案评估内容质量。若质量不达预设门槛，再对 Max 独立重复这一步并在正式实验前冻结一种模型。失败时排查 API ID、地域、权限、endpoint 或 JSON mode，不用换模型掩盖配置问题。
 5. **固定流式 baseline**：先运行 `scripts/run_long_horizon_qwen.py` 短流，验证先预测、后释放反馈、再续训及断点恢复。baseline 不通过，不进入 T1。
-6. **T1 安全验证**：构建 digest 固定的候选镜像，先 preflight、再无故障短 run，然后用独立 run 逐类注入故障，验证候选隔离、稳定分支继续和恢复审计。
+6. **T1 安全验证**：按 T1 执行手册使用 `local_shadow` 完成 clean smoke，再按协议单独验证故障隔离和恢复。Kubernetes backend 是可选增强，不是 smoke 前置条件。
 7. **冻结并开展正式 T1**：冻结代码 commit、Task Model revision/配方、Decision API ID/提示词、数据哈希、预算、种子和统计方案后，才开始多种子长周期运行。
 8. **按技术递进**：T1 长周期安全机制验证完成后做 T2 经验生命周期与长周期验证，再做 T3 延迟反馈归因和跨批次保留/回退，最后开展 T1+T2+T3 组合与消融。
 
@@ -126,6 +126,6 @@ export LEGO_POLICY_API_KEY="<从密钥管理器注入>"
 
 ## 技术一候选
 
-候选提案命令在可信本地进程中调用 Decision LLM，再把无凭据的候选源码 bundle 交给 Kubernetes Job。Decision API 凭据不会传入 Pod。候选镜像必须用 digest 固定；稳定分支与候选分支若都使用 GPU，分配不同物理 GPU 或 MIG 设备。由 Kubernetes 分配明确的 GPU 请求。
+Decision LLM 在可信进程中提出受限数据策略，固定 runner 读取策略并写入独立 candidate output/checkpoint 分支。默认 `local_shadow` 不执行任意候选代码，不提供网络隔离或 CPU/内存硬限制。若需要更强进程隔离，可另配 Kubernetes backend；其镜像与权限配置不属于默认 T1 smoke 的前置要求。
 
 完整的 T1 参数、命令和结果判读见[技术一安全自进化执行手册](technology-one-safe-evolution-runbook.md)。

@@ -50,8 +50,11 @@ def smoke_decision_endpoint(profile: dict[str, Any]) -> dict[str, Any]:
             "model": model,
             "prompt": {
                 "system": (
-                    "Return JSON only with a proposal object, a non-empty rationale, and one "
-                    "write edit for smoke.py. The content must be exactly VALUE = 1."
+                    "Return JSON only with a proposal object, a non-empty rationale, and exactly "
+                    "one write edit for candidate_strategy.json. The content must be valid JSON "
+                    "with schema lego-t1-data-strategy-v1 and data_policy exactly "
+                    "{\"min_input_chars\":1,\"deduplicate_inputs\":true,"
+                    "\"max_feedback_examples\":null}."
                 ),
                 "user": "Return the minimal candidate proposal for an API connectivity smoke test.",
             },
@@ -62,14 +65,20 @@ def smoke_decision_endpoint(profile: dict[str, Any]) -> dict[str, Any]:
         candidate_id="decision-endpoint-smoke",
         base_version_id="smoke-base",
     )
-    if proposal["edits"] != [
-        {
-            "path": "smoke.py",
-            "operation": "write",
-            "content": "VALUE = 1",
-        }
-    ]:
+    if len(proposal["edits"]) != 1:
+        raise ValueError("Decision LLM did not return exactly one requested smoke edit")
+    edit = proposal["edits"][0]
+    if edit["path"] != "candidate_strategy.json" or edit["operation"] != "write":
         raise ValueError("Decision LLM did not return the requested smoke edit")
+    if json.loads(edit["content"]) != {
+        "schema": "lego-t1-data-strategy-v1",
+        "data_policy": {
+            "min_input_chars": 1,
+            "deduplicate_inputs": True,
+            "max_feedback_examples": None,
+        },
+    }:
+        raise ValueError("Decision LLM did not return the requested smoke policy")
     cost = response.get("cost")
     if not isinstance(cost, dict):
         raise ValueError("Decision LLM response did not include token/call cost")

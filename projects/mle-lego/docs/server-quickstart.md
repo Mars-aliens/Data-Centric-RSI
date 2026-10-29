@@ -102,7 +102,7 @@ export CUDA_VISIBLE_DEVICES=<stable使用的GPU编号>
 
 ## 4. 跑固定流水线 smoke
 
-这一步只验证真实数据、Task Model 预测、延迟反馈释放和 parent-checkpoint 续训，不包含 T1 候选或 Kubernetes 隔离。T1 的 stable/candidate 配对 smoke 在下一份执行手册中另行运行，目的不同。
+这一步只验证真实数据、Task Model 预测、延迟反馈释放和 parent-checkpoint 续训，不包含 T1 候选分支验证。T1 的 stable/candidate 配对 smoke 在下一份执行手册中另行运行，默认使用 `local_shadow`，不要求 Kubernetes。
 
 ```bash
 "$TRAIN_PY" scripts/run_long_horizon_qwen.py \

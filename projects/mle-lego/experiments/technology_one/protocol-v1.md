@@ -20,7 +20,7 @@
 | 条件 | 运行方式 | 当前用途 |
 | --- | --- | --- |
 | `B0-fixed` | 只运行固定 HelpSteer2 流式 Data System，不生成或运行候选 | 建立稳定流水线的完成率、质量、成本和恢复基线 |
-| `T1-shadow-clean` | 使用相同任务流运行固定稳定分支，并在 Kubernetes 隔离环境运行一份候选；不注入故障 | 检查候选正常运行、双分支状态和额外成本；候选与稳定指标分别报告 |
+| `T1-shadow-clean` | 使用相同任务流运行固定稳定分支，并由固定可信 runner 在独立本地 candidate 分支运行受限数据策略；不注入故障 | 检查候选正常运行、双分支状态和额外成本；候选与稳定指标分别报告 |
 | `T1-shadow-fault` | 与 `T1-shadow-clean` 相同，但对候选注入一种预先指定故障；每种故障使用独立 run | 检查错误是否被检测并限制在候选支路，稳定分支是否继续完成 |
 | `T1-resume` | 在批次边界中断后，用同一 run ID、配置和输出目录恢复 | 检查稳定 runner、反馈队列和候选支路的恢复及幂等性 |
 
@@ -51,7 +51,7 @@ pilot 固定使用 `seed=17`、`stream_seed=17`、`groups_per_batch=50`、`feedb
 6. 用通过本地 proposal/bundle 检查的真实 Decision LLM 候选执行独立 pilot。候选失败可作为被隔离的失败记录，但不能把 fixture 结果计作 LLM 自进化结果。
 7. 用相同 run 配置在批次边界中断并恢复一次，确认已提交批次不重复、反馈不重复释放、run signature 不变。恢复测试与干净 smoke 分开报告。
 
-具体环境、API、Kubernetes 镜像、GPU、配置和命令见执行手册。新 runner 的 `--max-batches 4` 会将确定性流限制为前四批；manifest 同时记录完整可用批数、实际排程批数和限制值。Smoke 通过后按执行手册运行 10～20 周期 pilot，再确定正式运行规模。
+具体环境、API、GPU、配置和命令见执行手册。默认 `local_shadow` 只运行固定可信 adapter，并把 candidate 输出和 parent checkpoint 放入独立分支；它不是容器或任意代码安全沙箱。Kubernetes backend 是可选增强，不是本 smoke 的前置条件。新 runner 的 `--max-batches 4` 会将确定性流限制为前四批；manifest 同时记录完整可用批数、实际排程批数和限制值。Smoke 通过后按执行手册运行 10～20 周期 pilot，再确定正式运行规模。
 
 ## 5. 故障覆盖
 
@@ -66,7 +66,7 @@ pilot 固定使用 `seed=17`、`stream_seed=17`、`groups_per_batch=50`、`feedb
 | `budget_overrun` | 报告训练步数不能越过每批上限 |
 | `write_protected_parent` | 父 checkpoint 只读与写保护 |
 
-工程 pilot 只要求先通过一种端到端注入（`invalid_protocol`）；其余故障先由本地契约测试覆盖，再在 Kubernetes 预检通过后逐类进行服务器验证。代码异常或容器退出不应令稳定分支丢失已提交批次。候选模型报告的成本须标明为“模型报告值”，并与宿主 GPU/进程监控分开保存；候选恶意或错误代码不可信其自报的资源值。
+工程 pilot 只要求先通过一种端到端注入（`invalid_protocol`）；其余故障先由本地契约测试覆盖，再逐类进行服务器验证。当前 `local_shadow` 仅执行受信任的固定 adapter，故障注入验证的是协议门控、candidate 分支和 stable 状态保护；它不能证明任意候选代码的安全性或操作系统级资源限制。候选模型报告的成本须标明为“模型报告值”，并与宿主 GPU/进程监控分开保存。
 
 ## 6. 主要指标与 pilot 通过门槛
 

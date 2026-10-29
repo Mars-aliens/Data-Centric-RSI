@@ -1,0 +1,8 @@
+{
+  "schema": "lego-t1-data-strategy-v1",
+  "data_policy": {
+    "min_input_chars": 1,
+    "deduplicate_inputs": true,
+    "max_feedback_examples": null
+  }
+}

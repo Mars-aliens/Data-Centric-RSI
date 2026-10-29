@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
 from .long_horizon_qwen_command import _training_records
+from .candidate_strategy import validate_candidate_strategy
 from .qwen_preference import LABEL_TO_TEXT, predict, train_checkpoint
 
 
@@ -22,8 +24,8 @@ def run_step(request: dict[str, Any]) -> dict[str, Any]:
     config = request.get("config")
     if not isinstance(config, dict):
         raise ValueError("config must be an object")
-    if config.get("base_model_path") != "/models/task":
-        raise ValueError("candidate task model must use the read-only /models/task mount")
+    if not isinstance(config.get("base_model_path"), str) or not config["base_model_path"].strip():
+        raise ValueError("candidate task model path is required")
     checkpoint = request.get("checkpoint")
     if not isinstance(checkpoint, dict):
         raise ValueError("checkpoint is required")
@@ -63,25 +65,76 @@ def run_step(request: dict[str, Any]) -> dict[str, Any]:
     prediction_seconds = time.perf_counter() - started
 
     next_checkpoint = checkpoint
+    raw_seed = request.get("seed_examples")
+    raw_feedback = request.get("released_feedback")
+    if not isinstance(raw_seed, list) or not isinstance(raw_feedback, list):
+        raise ValueError("seed_examples and released_feedback must be lists")
+    data_processing = {
+        "strategy_sha256": None,
+        "seed_records_seen": len(raw_seed),
+        "feedback_records_seen": len(raw_feedback),
+        "training_records_selected": 0,
+        "training_records_dropped": 0,
+    }
     training_cost: dict[str, int | float] = {
         "training_steps": 0,
         "training_records_seen": 0,
         "training_seconds": 0.0,
     }
-    raw_seed = request.get("seed_examples")
-    raw_feedback = request.get("released_feedback")
-    if not isinstance(raw_seed, list) or not isinstance(raw_feedback, list):
-        raise ValueError("seed_examples and released_feedback must be lists")
+    strategy = validate_candidate_strategy(
+        config.get("candidate_strategy", {
+            "schema": "lego-t1-data-strategy-v1",
+            "data_policy": {
+                "min_input_chars": 1,
+                "deduplicate_inputs": True,
+                "max_feedback_examples": None,
+            },
+        })
+    )
+    data_processing["strategy_sha256"] = hashlib.sha256(
+        json.dumps(strategy, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
     if raw_feedback:
+        policy = strategy["data_policy"]
         records_by_id: dict[str, dict[str, str]] = {}
-        for raw in [*raw_seed, *raw_feedback]:
-            if not isinstance(raw, dict):
-                raise ValueError("training examples must be objects")
-            normalized = _training_records([raw])[0]
-            if normalized["record_id"] in records_by_id:
-                raise ValueError(f"duplicate released training record: {normalized['record_id']}")
-            records_by_id[normalized["record_id"]] = normalized
-        artifact_root = Path("/candidate-output") / "checkpoint"
+        selected_inputs: set[str] = set()
+        selected_feedback: list[dict[str, str]] = []
+        for source, rows in (("seed", raw_seed), ("feedback", raw_feedback)):
+            for raw in rows:
+                if not isinstance(raw, dict):
+                    raise ValueError("training examples must be objects")
+                normalized = _training_records([raw])[0]
+                text = normalized["input"]
+                if len(text) < policy["min_input_chars"]:
+                    continue
+                key = " ".join(text.casefold().split())
+                if policy["deduplicate_inputs"] and key in selected_inputs:
+                    continue
+                selected_inputs.add(key)
+                if normalized["record_id"] in records_by_id:
+                    raise ValueError(f"duplicate released training record: {normalized['record_id']}")
+                records_by_id[normalized["record_id"]] = normalized
+                if source == "feedback":
+                    selected_feedback.append(normalized)
+        max_feedback = policy["max_feedback_examples"]
+        feedback_count_before_cap = len(selected_feedback)
+        if max_feedback is not None and len(selected_feedback) > max_feedback:
+            keep_ids = {item["record_id"] for item in selected_feedback[-max_feedback:]}
+            records_by_id = {
+                key: value for key, value in records_by_id.items()
+                if key not in {item["record_id"] for item in selected_feedback} or key in keep_ids
+            }
+        if not records_by_id:
+            raise ValueError("candidate data policy removed every training example")
+        data_processing["training_records_selected"] = len(records_by_id)
+        data_processing["training_records_dropped"] = (
+            len(raw_seed) + len(raw_feedback) - len(records_by_id)
+        )
+        data_processing["feedback_records_dropped_by_cap"] = (
+            feedback_count_before_cap - min(feedback_count_before_cap, max_feedback)
+            if max_feedback is not None else 0
+        )
+        artifact_root = Path(config.get("candidate_output_path", "/candidate-output/checkpoint"))
         next_checkpoint, training_cost = train_checkpoint(
             list(records_by_id.values()),
             config=config,
@@ -96,6 +149,7 @@ def run_step(request: dict[str, Any]) -> dict[str, Any]:
         "parent_version_id": parent_version_id,
         "predictions": predictions,
         "checkpoint": next_checkpoint,
+        "data_processing": data_processing,
         "cost": {
             **training_cost,
             "prediction_records": len(records),

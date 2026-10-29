@@ -10,6 +10,7 @@ from core_system.mle_core.store import ArtifactStore
 
 from .candidate_proposal import write_candidate_bundle
 from .candidate_sandbox import SandboxLimits, SandboxResult, hash_directory
+from .candidate_strategy import DEFAULT_STRATEGY
 from .candidate_shadow import LongHorizonCandidateShadow
 
 
@@ -22,7 +23,8 @@ class FakeSandbox:
     @property
     def isolation_evidence(self):
         return {
-            "container_isolation": self.backend_name == "kubernetes" and self.isolation_verified
+            "container_isolation": self.backend_name == "kubernetes" and self.isolation_verified,
+            "candidate_output_isolated": self.isolation_verified,
         }
 
     def __init__(
@@ -119,7 +121,9 @@ class CandidateShadowTests(unittest.TestCase):
     def _setup(self, root: Path, sandbox: FakeSandbox):
         candidate_dir = root / "bundle"
         candidate_dir.mkdir(exist_ok=True)
-        (candidate_dir / "candidate.py").write_text("candidate", encoding="utf-8")
+        (candidate_dir / "candidate_strategy.json").write_text(
+            json.dumps(DEFAULT_STRATEGY), encoding="utf-8"
+        )
         base = root / "base"
         base.mkdir(exist_ok=True)
         (base / "config.json").write_text("{}", encoding="utf-8")
@@ -131,7 +135,7 @@ class CandidateShadowTests(unittest.TestCase):
             candidate_dir=candidate_dir,
             output_dir=root / "shadow",
             sandbox=sandbox,
-            command=("python", "/candidate/candidate.py"),
+            command=("python", "-m", "technologies.technology_one.long_horizon_candidate_qwen_command"),
             store=ArtifactStore(root / "events"),
             max_reported_training_steps=10,
         )
@@ -186,6 +190,7 @@ class CandidateShadowTests(unittest.TestCase):
         self.assertEqual(first["status"], "eligible_for_observation")
         self.assertEqual(sandbox.calls[0]["seed"], 20)
         self.assertEqual(sandbox.calls[0]["config"]["prediction_batch_size"], 3)
+        self.assertEqual(sandbox.calls[0]["config"]["candidate_strategy"], DEFAULT_STRATEGY)
         self.assertEqual(first["gate"]["status"], "eligible_for_observation")
         self.assertEqual(first["gate"]["evidence"]["stable_parent_hash_before"], stable_hash)
         self.assertEqual(first["gate"]["evidence"]["stable_parent_hash_after"], stable_hash)
@@ -206,14 +211,15 @@ class CandidateShadowTests(unittest.TestCase):
                 self.assertEqual(before, after)
                 self.assertEqual(result["gate"]["status"], "rejected")
 
-    def test_successful_local_backend_is_rejected_by_safety_gate(self) -> None:
+    def test_local_shadow_backend_is_eligible_without_claiming_container_isolation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            sandbox = FakeSandbox(backend_name="local")
-            with self.assertRaisesRegex(ValueError, "candidate sandbox backend must be kubernetes"):
-                self._setup(root, sandbox)
-        self.assertEqual(sandbox.calls, [])
-        self.assertFalse((root / "shadow").exists())
+            sandbox = FakeSandbox(backend_name="local_shadow")
+            shadow, base, adapter = self._setup(root, sandbox)
+            result = self._run_batch(shadow, base, adapter)
+        self.assertEqual(result["status"], "eligible_for_observation")
+        self.assertTrue(result["gate"]["evidence"]["candidate_output_isolated"])
+        self.assertFalse(result["gate"]["evidence"]["container_isolation"])
 
     def test_sandbox_backend_mismatch_is_rejected_even_if_candidate_succeeds(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -223,7 +229,7 @@ class CandidateShadowTests(unittest.TestCase):
             result = self._run_batch(shadow, base, adapter)
 
         self.assertEqual(result["status"], "rejected")
-        self.assertEqual(result["gate"]["failed_checks"], ["sandboxed"])
+        self.assertEqual(result["gate"]["failed_checks"], ["candidate_branch_isolated"])
         self.assertEqual(result["gate"]["evidence"]["sandbox_backend"], "local")
         self.assertFalse(result["gate"]["evidence"]["container_isolation"])
         self.assertFalse(result["candidate_checkpoint_retained"])
@@ -242,7 +248,7 @@ class CandidateShadowTests(unittest.TestCase):
         self.assertEqual(admitted["status"], "eligible_for_observation")
         self.assertEqual(rejected["status"], "rejected")
         self.assertEqual(rejected["gate"]["status"], "rejected")
-        self.assertEqual(rejected["gate"]["failed_checks"], ["sandboxed"])
+        self.assertEqual(rejected["gate"]["failed_checks"], ["candidate_branch_isolated"])
         self.assertEqual(rejected["gate"]["evidence"]["sandbox_backend"], "local")
 
     def test_k8s_regression_gate_requires_execution_evidence(self) -> None:
@@ -257,7 +263,7 @@ class CandidateShadowTests(unittest.TestCase):
                 )
                 self.assertEqual(result["gate"]["evidence"]["container_isolation"], verified)
                 if not verified:
-                    self.assertIn("sandboxed", result["gate"]["failed_checks"])
+                    self.assertIn("candidate_branch_isolated", result["gate"]["failed_checks"])
 
     def test_candidate_retains_only_the_latest_active_checkpoint(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -280,7 +286,7 @@ class CandidateShadowTests(unittest.TestCase):
             root = Path(temporary)
             source = root / "source"
             source.mkdir()
-            (source / "candidate.py").write_text("candidate = True\n", encoding="utf-8")
+            (source / "candidate_strategy.json").write_text(json.dumps(DEFAULT_STRATEGY), encoding="utf-8")
             bundle = root / "bundle"
             write_candidate_bundle(
                 base_dir=source,
@@ -288,7 +294,7 @@ class CandidateShadowTests(unittest.TestCase):
                 proposal={
                     "rationale": "Run this candidate on the current stable stream.",
                     "edits": [
-                        {"path": "candidate.py", "operation": "write", "content": "candidate = False\n"}
+                        {"path": "candidate_strategy.json", "operation": "write", "content": json.dumps({"schema": "lego-t1-data-strategy-v1", "data_policy": {**DEFAULT_STRATEGY["data_policy"], "min_input_chars": 5}})}
                     ],
                 },
                 candidate_id="t1-candidate-1",
@@ -309,7 +315,7 @@ class CandidateShadowTests(unittest.TestCase):
                 candidate_dir=bundle,
                 output_dir=root / "shadow",
                 sandbox=sandbox,
-                command=("python", "/candidate/candidate.py"),
+                command=("python", "-m", "technologies.technology_one.long_horizon_candidate_qwen_command"),
                 store=ArtifactStore(root / "events"),
                 require_proposal_manifest=True,
             )
@@ -327,7 +333,7 @@ class CandidateShadowTests(unittest.TestCase):
             root = Path(temporary)
             source = root / "source"
             source.mkdir()
-            (source / "candidate.py").write_text("candidate = True\n", encoding="utf-8")
+            (source / "candidate_strategy.json").write_text(json.dumps(DEFAULT_STRATEGY), encoding="utf-8")
             bundle = root / "bundle"
             write_candidate_bundle(
                 base_dir=source,
@@ -335,7 +341,7 @@ class CandidateShadowTests(unittest.TestCase):
                 proposal={
                     "rationale": "Try a candidate with a deliberately mismatched parent.",
                     "edits": [
-                        {"path": "candidate.py", "operation": "write", "content": "candidate = False\n"}
+                        {"path": "candidate_strategy.json", "operation": "write", "content": json.dumps({"schema": "lego-t1-data-strategy-v1", "data_policy": {**DEFAULT_STRATEGY["data_policy"], "min_input_chars": 2}})}
                     ],
                 },
                 candidate_id="t1-candidate-1",
@@ -350,7 +356,7 @@ class CandidateShadowTests(unittest.TestCase):
                 candidate_dir=bundle,
                 output_dir=root / "shadow",
                 sandbox=sandbox,
-                command=("python", "/candidate/candidate.py"),
+                command=("python", "-m", "technologies.technology_one.long_horizon_candidate_qwen_command"),
                 store=ArtifactStore(root / "events"),
                 require_proposal_manifest=True,
             )

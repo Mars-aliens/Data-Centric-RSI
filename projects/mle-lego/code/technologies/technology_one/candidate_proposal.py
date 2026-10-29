@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 from .candidate_sandbox import hash_directory
+from .candidate_strategy import validate_candidate_strategy
 
 
 _IGNORED_NAMES = {
@@ -103,8 +104,8 @@ def _safe_relative_path(raw: object) -> PurePosixPath:
         raise CandidateProposalError("candidate edits cannot create or change environment files")
     if path.name == "candidate_proposal.json":
         raise CandidateProposalError("candidate_proposal.json is reserved for provenance")
-    if path.suffix.lower() not in _ALLOWED_SUFFIXES:
-        raise CandidateProposalError(f"candidate edit has a disallowed file type: {raw!r}")
+    if path.as_posix() != "candidate_strategy.json":
+        raise CandidateProposalError("candidate edits may only update candidate_strategy.json")
     if any(path.name.lower().endswith(suffix) for suffix in (".pem", ".key", ".token")):
         raise CandidateProposalError("candidate edits cannot contain credentials")
     return path
@@ -194,12 +195,14 @@ def validate_candidate_proposal(
             size = len(content.encode("utf-8"))
             if size > _MAX_FILE_BYTES:
                 raise CandidateProposalError(f"edit {path_text} exceeds the per-file size limit")
+            try:
+                validate_candidate_strategy(json.loads(content))
+            except (json.JSONDecodeError, ValueError) as exc:
+                raise CandidateProposalError(f"invalid candidate strategy: {exc}") from exc
             total_bytes += size
             normalized.append({"path": path_text, "operation": "write", "content": content})
         elif operation == "delete":
-            if "content" in edit:
-                raise CandidateProposalError(f"delete edit {path_text} cannot include content")
-            normalized.append({"path": path_text, "operation": "delete"})
+            raise CandidateProposalError("candidate_strategy.json is required and cannot be deleted")
         else:
             raise CandidateProposalError(f"edit {path_text} operation must be write or delete")
     if total_bytes > _MAX_TOTAL_BYTES:
@@ -266,21 +269,7 @@ def _context_files(
         paths = [_safe_relative_path(item) for item in selected]
         candidates = [base_dir.joinpath(*path.parts) for path in paths]
     else:
-        candidates = []
-        for current, directories, files in os.walk(base_dir, topdown=True, followlinks=False):
-            current_path = Path(current)
-            directories[:] = [
-                name
-                for name in directories
-                if not _ignored_path((current_path / name).relative_to(base_dir))
-            ]
-            candidates.extend(
-                current_path / name
-                for name in files
-                if not _ignored_path((current_path / name).relative_to(base_dir))
-                and (current_path / name).suffix.lower() in _ALLOWED_SUFFIXES
-            )
-        candidates.sort()
+        candidates = [base_dir / "candidate_strategy.json"]
     result: list[dict[str, str]] = []
     used = 0
     for path in candidates:
@@ -360,13 +349,14 @@ def build_candidate_prompt(
     safe_observation = _validate_observation(observation)
     context = _context_files(root, selected=selected_context_files)
     system = (
-        "You propose one bounded Data System candidate modification for a long-running "
-        "HelpSteer2 stream. Return JSON only with a top-level proposal object containing "
-        "a non-empty rationale and a non-empty edits array. Each edit is either "
-        "{path, operation:'write', content} or {path, operation:'delete'}. Paths are "
-        "relative to the supplied candidate bundle. Do not include credentials, datasets, "
-        "weights, run outputs, or environment files. The candidate will execute in a "
-        "networkless resource-limited container and will not be promoted by this stage."
+        "Propose one bounded data-selection strategy for a long-running HelpSteer2 stream. "
+        "Return JSON only with a top-level proposal object containing a rationale and one "
+        "edit that writes candidate_strategy.json. The file must use schema "
+        "lego-t1-data-strategy-v1 and define data_policy.min_input_chars (integer 1..100000), "
+        "data_policy.deduplicate_inputs (boolean), and data_policy.max_feedback_examples "
+        "(null or integer 1..100000). Do not propose Python or shell code, credentials, "
+        "datasets, weights, or environment files. A fixed trusted runner applies the strategy "
+        "to a separate candidate checkpoint branch; this is not an arbitrary-code security sandbox."
     )
     user = json.dumps(
         {
@@ -418,7 +408,12 @@ def write_candidate_bundle(
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = destination.parent / f".{destination.name}.{uuid.uuid4().hex}.tmp"
     try:
-        shutil.copytree(source, staging, ignore=_ignore_bundle, symlinks=False)
+        strategy_path = source / "candidate_strategy.json"
+        if not strategy_path.is_file() or strategy_path.is_symlink():
+            raise CandidateProposalError("base bundle must contain candidate_strategy.json")
+        validate_candidate_strategy(json.loads(strategy_path.read_text(encoding="utf-8")))
+        staging.mkdir(parents=True)
+        shutil.copy2(strategy_path, staging / "candidate_strategy.json")
         base_bundle_hash = hash_directory(staging)
         changed_files: list[dict[str, str]] = []
         for edit in validated["edits"]:

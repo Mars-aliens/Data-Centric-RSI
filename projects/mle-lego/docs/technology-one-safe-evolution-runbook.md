@@ -1,22 +1,48 @@
-# 技术一执行手册
+# 技术一服务器执行步骤
 
-同步待验证代码后，沿用服务器现有 Python 环境、数据和模型路径，按以下步骤重跑 T1 smoke。候选 JSON 需兼容本次 K8s 后端，由预检核验。完成 `4/4` 并检查结果后停止。
+沿用服务器现有 Python 环境、数据和模型路径。此流程使用 `local_shadow`：Decision LLM 提出的候选只能改受限的数据策略 JSON，由固定可信 runner 执行；候选在独立输出目录和 parent-checkpoint 副本上运行。此机制检查候选分支是否污染 stable，不运行任意候选 Python/shell 代码，也不提供操作系统级资源或网络隔离。
 
-## 1. 预检并运行 4/4
+完成 `4/4` 后检查结果并停止。
 
-在已有服务器会话中执行。命令自动生成新的 run ID 和输出目录。
+## 1. 生成 clean smoke candidate
 
 ```bash
 cd "$LEGO_ROOT"
+mkdir -p "$LEGO_ROOT/server-private/t1-candidates"
 
-T1_RUN_ID="t1-k8s-smoke-$(date +%Y%m%d-%H%M%S)"
+T1_RUN_ID="t1-local-shadow-smoke-$(date +%Y%m%d-%H%M%S)"
+T1_CANDIDATE_DIR="$LEGO_ROOT/server-private/t1-candidates/$T1_RUN_ID"
+T1_CANDIDATE_CONFIG="$LEGO_ROOT/server-private/$T1_RUN_ID.json"
 T1_OUTPUT="$LEGO_ROOT/runs/t1-smoke/$T1_RUN_ID"
 
+"$TRAIN_PY" scripts/create_t1_smoke_candidate.py \
+  --source-dir "$LEGO_ROOT/code/technologies/technology_one" \
+  --output-dir "$T1_CANDIDATE_DIR" \
+  --candidate-id "$T1_RUN_ID"
+
+cp code/technologies/technology_one/candidate_shadow.example.json "$T1_CANDIDATE_CONFIG"
+```
+
+编辑 `$T1_CANDIDATE_CONFIG`，设置以下字段。`candidate_dir` 是相对于该 JSON 文件的路径；其余内容沿用 example：
+
+```json
+{
+  "candidate_id": "替换为本次 T1_RUN_ID",
+  "sandbox_backend": "local_shadow",
+  "candidate_dir": "./t1-candidates/替换为本次 T1_RUN_ID"
+}
+```
+
+配置中的 `candidate_id` 必须与 `create_t1_smoke_candidate.py` 使用的 ID 相同。不要添加 `image` 或 `kubernetes` 字段。确认 Task Model smoke 配置仍指向现有模型路径和固定 revision。
+
+## 2. 预检并运行 4/4
+
+```bash
 T1_ARGS=(
   --train-jsonl "$LEGO_ROOT/data/helpsteer2-train.jsonl"
   --validation-jsonl "$LEGO_ROOT/data/helpsteer2-validation.jsonl"
   --task-config-json "$LEGO_ROOT/server-private/task-model-smoke.json"
-  --candidate-config-json "$LEGO_ROOT/server-private/t1-clean-smoke.json"
+  --candidate-config-json "$T1_CANDIDATE_CONFIG"
   --output-dir "$T1_OUTPUT"
   --run-id "$T1_RUN_ID"
   --seed 17
@@ -32,13 +58,9 @@ T1_ARGS=(
   "${T1_ARGS[@]}"
 ```
 
-预检通过才自动启动 4/4。确认输出为 `preflight_ok`、`sandbox_backend=kubernetes`，且模型 revision、路径和 GPU 请求数量正确。预检失败就停止排查，不能回退 local。
+预检输出必须包含 `status=preflight_ok` 和 `sandbox_backend=local_shadow`。预检失败就停止并处理报错，不改用另一 backend。
 
-命令完成后，在同一 shell 执行第 2 节检查。
-
-## 2. 检查并停止
-
-检查 `$T1_OUTPUT/stable/summary.json`。以下命令逐项核验 stable 完成 4 批、candidate 每批均通过隔离门、延迟反馈已释放、candidate 用反馈训练并保留自己的 checkpoint，且没有使用 held-out/final-test：
+## 3. 检查结果并停止
 
 ```bash
 "$TRAIN_PY" - "$T1_OUTPUT/stable/summary.json" <<'PY'
@@ -50,7 +72,6 @@ with open(sys.argv[1], encoding="utf-8") as handle:
 
 candidate = summary.get("candidate_history", [])
 batches = summary.get("batch_history", [])
-candidate_indexes = sorted(item.get("batch_index") for item in candidate)
 last_candidate = next(
     (item for item in candidate if item.get("batch_index") == 3), {}
 )
@@ -61,23 +82,19 @@ checks = {
         and summary.get("target_batches") == 4
     ),
     "candidate_complete_4_of_4": (
-        candidate_indexes == [0, 1, 2, 3]
+        [item.get("batch_index") for item in candidate] == [0, 1, 2, 3]
         and all(item.get("status") == "eligible_for_observation" for item in candidate)
     ),
-    "kubernetes_isolation_4_of_4": len(candidate) == 4 and all(
-        item.get("gate", {}).get("evidence", {}).get("sandbox_backend") == "kubernetes"
-        and item.get("gate", {}).get("evidence", {}).get("container_isolation") is True
+    "candidate_branch_and_stable_unchanged": len(candidate) == 4 and all(
+        item.get("gate", {}).get("evidence", {}).get("sandbox_backend") == "local_shadow"
+        and item.get("gate", {}).get("evidence", {}).get("candidate_output_isolated") is True
         and item.get("gate", {}).get("evidence", {}).get("stable_parent_unchanged") is True
-        and item.get("gate", {}).get("evidence", {}).get("isolation_evidence", {}).get("output_retrieved") is True
-        and item.get("gate", {}).get("evidence", {}).get("isolation_evidence", {}).get("network_policy_enforcement_verified") is True
-        and item.get("gate", {}).get("evidence", {}).get("isolation_evidence", {}).get("pod_uid")
-        and item.get("gate", {}).get("evidence", {}).get("isolation_evidence", {}).get("cleanup_errors") == []
         for item in candidate
     ),
     "delayed_feedback_released": any(
         batch.get("released_feedback_ids") for batch in batches
     ),
-    "candidate_trained_and_retained_checkpoint": (
+    "candidate_trained_and_checkpoint_retained": (
         last_candidate.get("cost", {}).get("training_steps", 0) > 0
         and last_candidate.get("candidate_checkpoint_retained") is True
     ),
@@ -88,11 +105,11 @@ checks = {
 for name, passed in checks.items():
     print(f"{name}: {'PASS' if passed else 'FAIL'}")
 if not all(checks.values()):
-    raise SystemExit("T1 clean smoke verification failed; stop and inspect the run artifacts.")
-print("T1 clean smoke verification: PASS")
+    raise SystemExit("T1 local-shadow smoke failed; stop and inspect the run artifacts.")
+print("T1 local-shadow smoke: PASS")
 PY
 ```
 
-以上条件全部满足后，本阶段完成。
+所有条件通过后，本阶段完成并停止。若失败，检查 `$T1_OUTPUT/stable/candidate-shadow/` 下对应批次的 `failure_code`、错误和 `gate.evidence`，根据实际错误修复后再运行新的 run ID。
 
-失败时先读取 candidate-shadow/trials 下当前批次的 failure_code、error 和 gate.evidence，再检查对应 Job/Pod 事件。未被自动清理的资源名称保存在 isolation_evidence.cleanup_errors 中；请管理员处理后再运行。ConfigMap 请求上限为 700 KiB，超过会拒绝；本阶段不增加 batch size 或反馈载荷。
+`local_shadow` 的证据只支持“受限策略由可信 runner 在独立候选分支执行，stable parent 未被改写”。结果中的 `container_isolation=false` 是预期值；不得把本次结果描述为容器隔离、任意代码安全、网络隔离或 CPU/内存硬限制验证。Kubernetes backend 是可选增强，当前 T1 smoke 不要求 Kubernetes、kubectl 或 Docker。

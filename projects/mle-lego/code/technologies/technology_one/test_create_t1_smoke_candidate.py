@@ -10,7 +10,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = PROJECT_ROOT / "scripts" / "create_t1_smoke_candidate.py"
-SOURCE_FILE = "technologies/technology_one/long_horizon_candidate_qwen_command.py"
+STRATEGY_FILE = "candidate_strategy.json"
 
 
 class CreateT1SmokeCandidateTests(unittest.TestCase):
@@ -18,9 +18,13 @@ class CreateT1SmokeCandidateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "code"
-            (source / "technologies/technology_one").mkdir(parents=True)
-            original = "def run():\n    return 1\n"
-            (source / SOURCE_FILE).write_text(original, encoding="utf-8")
+            source.mkdir()
+            (source / "candidate_strategy.json").write_text(
+                '{"schema":"lego-t1-data-strategy-v1","data_policy":'
+                '{"min_input_chars":1,"deduplicate_inputs":true,"max_feedback_examples":null}}',
+                encoding="utf-8",
+            )
+            source_strategy = (source / "candidate_strategy.json").read_text(encoding="utf-8")
             output = root / "candidate"
 
             subprocess.run(
@@ -43,9 +47,9 @@ class CreateT1SmokeCandidateTests(unittest.TestCase):
             )
             self.assertEqual(manifest["decision_model"]["provider"], "local_smoke_fixture")
             self.assertEqual(manifest["proposal_cost"], {"llm_calls": 0, "llm_tokens": 0})
-            self.assertIn("without changing behavior", manifest["rationale"])
-            self.assertEqual((source / SOURCE_FILE).read_text(encoding="utf-8"), original)
-            self.assertIn("Deterministic T1 infrastructure smoke fixture", (output / SOURCE_FILE).read_text(encoding="utf-8"))
+            self.assertIn("default policy", manifest["rationale"])
+            self.assertEqual((source / STRATEGY_FILE).read_text(encoding="utf-8"), source_strategy)
+            self.assertTrue((output / STRATEGY_FILE).is_file())
 
 
 if __name__ == "__main__":

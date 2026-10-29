@@ -6,7 +6,10 @@ import json
 import math
 import os
 import re
+import signal
+import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -41,6 +44,7 @@ _FAULT_INJECTION_KINDS = {
 }
 _MAX_REQUEST_BYTES = 32 * 1024 * 1024
 _MAX_KUBERNETES_REQUEST_BYTES = 700 * 1024
+_MAX_LOCAL_RESPONSE_BYTES = 4 * 1024 * 1024
 _MAX_STDOUT_BYTES = 4 * 1024 * 1024
 _STDERR_TAIL_BYTES = 4000
 
@@ -89,6 +93,193 @@ def validate_immutable_image_reference(image: object) -> str:
             "candidate image must be an immutable sha256 image ID or repository digest"
         )
     return image
+
+
+class LocalShadowCandidateRunner:
+    """Run the trusted candidate adapter with separate local input/output paths."""
+
+    backend_name = "local_shadow"
+    image = "trusted-local-candidate-runner-v1"
+
+    def __init__(
+        self,
+        *,
+        limits: "SandboxLimits | None" = None,
+        fault_injection: Mapping[int, str] | None = None,
+    ):
+        self.limits = limits or SandboxLimits()
+        self.fault_injection = {int(key): value for key, value in (fault_injection or {}).items()}
+        invalid = set(self.fault_injection.values()) - _FAULT_INJECTION_KINDS
+        if invalid or any(index < 0 for index in self.fault_injection):
+            raise ValueError(f"unsupported local candidate fault schedule: {sorted(invalid)}")
+        self.execution_contract_verified = True
+        self._isolation_evidence: dict[str, Any] = {}
+
+    @property
+    def isolation_evidence(self) -> dict[str, Any]:
+        return {
+            "execution_mode": "trusted_local_runner",
+            "container_isolation": False,
+            "candidate_output_isolated": True,
+            "stable_state_write_protection": "hash_checked_after_execution",
+            "arbitrary_candidate_code_isolation": False,
+            **self._isolation_evidence,
+        }
+
+    def run_configuration(self) -> dict[str, Any]:
+        return {"backend": self.backend_name, "runner": self.image}
+
+    def execute(
+        self,
+        *,
+        command: Sequence[str],
+        payload: Mapping[str, Any],
+        mounts: Sequence["SandboxMount"],
+        output_dir: str | Path,
+        environment: Mapping[str, str] | None = None,
+    ) -> "SandboxResult":
+        started = time.monotonic()
+        batch_index = payload.get("batch_index")
+        fault = self.fault_injection.get(batch_index) if isinstance(batch_index, int) else None
+        if tuple(command[1:]) != (
+            "-m", "technologies.technology_one.long_horizon_candidate_qwen_command",
+        ):
+            return self._failure(started, "unsupported_command", "local_shadow only runs the trusted Qwen candidate adapter", fault)
+        by_target = {mount.target: mount.source.resolve(strict=True) for mount in mounts}
+        if set(by_target) != {"/candidate", "/parent-checkpoint", "/models/task"}:
+            return self._failure(started, "invalid_inputs", "candidate mounts do not match the approved input set", fault)
+        if any(not mount.read_only for mount in mounts):
+            return self._failure(started, "invalid_inputs", "candidate inputs must be read-only", fault)
+        output = Path(output_dir).resolve()
+        if output.exists() and any(output.iterdir()):
+            return self._failure(started, "invalid_output", "candidate output directory must be empty", fault)
+        output.mkdir(parents=True, exist_ok=True)
+
+        request = json.loads(json.dumps(payload))
+        parent_source = by_target["/parent-checkpoint"]
+        parent_hash_before = hash_directory(parent_source)
+        staged_parent = output / "parent-checkpoint"
+        shutil.copytree(parent_source, staged_parent)
+        staged_parent_hash = hash_directory(staged_parent)
+        if staged_parent_hash != parent_hash_before:
+            return self._failure(started, "parent_copy_mismatch", "candidate parent copy failed integrity verification", fault)
+        checkpoint = request["checkpoint"]
+        checkpoint["base_model_path"] = str(by_target["/models/task"])
+        checkpoint["adapter_path"] = str(staged_parent)
+        request["config"]["base_model_path"] = str(by_target["/models/task"])
+        request["config"]["candidate_output_path"] = str(output / "checkpoint")
+        encoded = json.dumps(request, ensure_ascii=True).encode("utf-8")
+        if len(encoded) > _MAX_REQUEST_BYTES:
+            return self._failure(started, "request_too_large", "candidate request exceeds the size limit", fault)
+        if fault == "timeout":
+            time.sleep(min(0.01, self.limits.timeout_seconds))
+            return self._failure(started, "timeout", "injected candidate timeout", fault, status="timed_out")
+        if fault == "nonzero_exit":
+            return self._failure(started, "nonzero_exit", "injected candidate process failure", fault)
+
+        allowed_environment = {
+                "PATH", "PYTHONPATH", "CUDA_VISIBLE_DEVICES", "CUDA_HOME", "LD_LIBRARY_PATH",
+                "HOME", "HF_HOME", "HF_HUB_CACHE", "TRANSFORMERS_CACHE", "HF_HUB_OFFLINE",
+                "TRANSFORMERS_OFFLINE", "TOKENIZERS_PARALLELISM", "SYSTEMROOT", "WINDIR",
+                "TEMP", "TMP",
+        }
+        requested_environment = dict(environment or {})
+        if set(requested_environment) - _SAFE_ENVIRONMENT:
+            return self._failure(started, "invalid_environment", "local candidate environment contains a non-allowlisted variable", fault)
+        child_env = {key: value for key, value in os.environ.items() if key in allowed_environment}
+        child_env.update(requested_environment)
+        with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+            try:
+                process = subprocess.Popen(
+                    [sys.executable, *command[1:]], stdin=subprocess.PIPE, stdout=stdout_file,
+                    stderr=stderr_file, cwd=str(Path.cwd()), env=child_env,
+                    start_new_session=(os.name != "nt"),
+                )
+                try:
+                    process.communicate(input=encoded, timeout=self.limits.timeout_seconds)
+                except subprocess.TimeoutExpired:
+                    if os.name != "nt":
+                        os.killpg(process.pid, signal.SIGKILL)
+                    else:
+                        process.kill()
+                    process.wait()
+                    return self._failure(started, "timeout", "candidate exceeded its wall-clock timeout", fault, status="timed_out")
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                return self._failure(started, "runner_error", str(exc), fault)
+            if hash_directory(parent_source) != parent_hash_before:
+                return self._failure(started, "parent_mutated", "candidate parent checkpoint changed during local execution", fault)
+            if hash_directory(staged_parent) != staged_parent_hash:
+                return self._failure(started, "candidate_parent_copy_mutated", "candidate changed its private parent checkpoint copy", fault)
+            stderr_file.seek(max(0, stderr_file.tell() - _STDERR_TAIL_BYTES))
+            stderr = stderr_file.read(_STDERR_TAIL_BYTES).decode("utf-8", errors="replace")
+            stdout_file.seek(0, os.SEEK_END)
+            response_size = stdout_file.tell()
+            if process.returncode != 0:
+                return SandboxResult("failed", self.backend_name, time.monotonic()-started,
+                    process.returncode, None, None, "nonzero_exit", "trusted candidate runner exited unsuccessfully", stderr, fault)
+            if response_size > _MAX_LOCAL_RESPONSE_BYTES:
+                return self._failure(started, "response_too_large", "candidate response exceeds the size limit", fault)
+            stdout_file.seek(0)
+            raw_response = stdout_file.read()
+        output_files = list(output.rglob("*"))
+        if len(output_files) > 10000 or any(path.is_symlink() for path in output_files):
+            return self._failure(started, "unsafe_output", "candidate output contains too many files or a symlink", fault)
+        total_output = sum(path.stat().st_size for path in output_files if path.is_file())
+        if total_output > self.limits.tmpfs_mib * 1024 * 1024:
+            return self._failure(started, "output_limit_exceeded", "candidate output exceeds the configured post-run size limit", fault)
+        self._isolation_evidence = {
+            "input_paths_read_only_by_contract": True,
+            "candidate_output_path": str(output),
+            "output_is_within_candidate_attempts": True,
+            "parent_checkpoint_copied_to_candidate_branch": True,
+            "parent_checkpoint_copy_hash_before": staged_parent_hash,
+            "parent_checkpoint_copy_hash_after": hash_directory(staged_parent),
+            "parent_checkpoint_source_hash_before": parent_hash_before,
+            "parent_checkpoint_source_hash_after": hash_directory(parent_source),
+            "process_group_timeout_supported": True,
+            "memory_limit_enforced": False,
+            "cpu_limit_enforced": False,
+            "network_disabled": False,
+        }
+        try:
+            response = json.loads(raw_response)
+            if not isinstance(response, dict):
+                raise ValueError("candidate response must be a JSON object")
+            if fault == "invalid_json":
+                raise ValueError("injected invalid JSON response")
+            if fault == "invalid_protocol":
+                response["protocol"] = "injected-invalid-protocol"
+            raw_checkpoint = response.get("checkpoint", {})
+            if isinstance(raw_checkpoint, dict):
+                raw_checkpoint["base_model_path"] = "/models/task"
+            adapter_path = raw_checkpoint.get("adapter_path")
+            if isinstance(adapter_path, str):
+                adapter = Path(adapter_path).resolve()
+                if adapter == (output / "checkpoint").resolve():
+                    raw_checkpoint["adapter_path"] = "/candidate-output/checkpoint"
+                elif adapter == staged_parent.resolve():
+                    raw_checkpoint["adapter_path"] = "/parent-checkpoint"
+                else:
+                    raise ValueError("candidate checkpoint path escaped its branch directories")
+            if fault == "wrong_parent":
+                response["parent_version_id"] = "injected-wrong-parent"
+            if fault == "missing_prediction":
+                response["predictions"] = response.get("predictions", [])[:-1]
+            if fault == "invalid_label" and response.get("predictions"):
+                response["predictions"][0]["prediction"] = "invalid-label"
+            if fault == "budget_overrun":
+                response.setdefault("cost", {})["training_steps"] = 10**9
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            return SandboxResult("failed", self.backend_name, time.monotonic()-started,
+                process.returncode, None, None, "invalid_response", str(exc), stderr, fault)
+        self._isolation_evidence["candidate_output_isolated"] = True
+        return SandboxResult("completed", self.backend_name, time.monotonic()-started,
+            process.returncode, response, hashlib.sha256(raw_response).hexdigest(), None, None, stderr, fault)
+
+    def _failure(self, started: float, code: str, message: str, fault: str | None,
+                 *, status: str = "failed") -> "SandboxResult":
+        return SandboxResult(status, self.backend_name, time.monotonic()-started,
+            None, None, None, code, message, "", fault)
 
 
 @dataclass(frozen=True)
@@ -218,6 +409,7 @@ class KubernetesJobCandidateSandbox:
     def isolation_evidence(self) -> dict[str, Any]:
         return {
             "container_isolation": self.isolation_verified,
+            "candidate_output_isolated": self.isolation_verified,
             "network_policy": self.network_policy_name,
             "read_only_root": True,
             "resource_limits": True,

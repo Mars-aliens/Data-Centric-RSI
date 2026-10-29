@@ -15,7 +15,7 @@ class CandidateGateStatus(str, Enum):
 
 @dataclass(frozen=True)
 class SafetyChecklist:
-    sandboxed: bool
+    candidate_branch_isolated: bool
     executable: bool
     data_valid: bool
     interfaces_valid: bool
@@ -27,7 +27,7 @@ class SafetyChecklist:
         return tuple(
             name
             for name in (
-                "sandboxed",
+                "candidate_branch_isolated",
                 "executable",
                 "data_valid",
                 "interfaces_valid",
@@ -104,7 +104,7 @@ class CandidateSafetyGate:
             {
                 **assessment.to_dict(),
                 "checklist": {
-                    "sandboxed": checklist.sandboxed,
+                    "candidate_branch_isolated": checklist.candidate_branch_isolated,
                     "executable": checklist.executable,
                     "data_valid": checklist.data_valid,
                     "interfaces_valid": checklist.interfaces_valid,

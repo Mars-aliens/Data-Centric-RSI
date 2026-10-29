@@ -21,6 +21,7 @@ os.environ["PYTHONPATH"] = os.pathsep.join(
 
 from core_system.mle_core.store import ArtifactStore  # noqa: E402
 from technologies.technology_one.candidate_sandbox import (  # noqa: E402
+    LocalShadowCandidateRunner,
     KubernetesJobCandidateSandbox,
     SandboxLimits,
     validate_immutable_image_reference,
@@ -32,6 +33,7 @@ from technologies.technology_one.candidate_proposal import (  # noqa: E402
     CandidateProposalError,
     read_candidate_manifest,
 )
+from technologies.technology_one.candidate_strategy import validate_candidate_strategy  # noqa: E402
 from technologies.technology_one.long_horizon_runner import (  # noqa: E402
     LongHorizonQwenRunner,
 )
@@ -126,6 +128,10 @@ def main() -> None:
         not isinstance(item, str) or not item for item in command
     ):
         parser.error("candidate config command must be a non-empty argv array")
+    if tuple(command[1:]) != (
+        "-m", "technologies.technology_one.long_horizon_candidate_qwen_command",
+    ):
+        parser.error("candidate command must invoke the trusted long_horizon_candidate_qwen_command module")
     limits_raw = candidate_config.get("limits", {})
     if not isinstance(limits_raw, dict):
         parser.error("candidate config limits must be an object")
@@ -137,13 +143,6 @@ def main() -> None:
         tmpfs_mib=int(limits_raw.get("tmpfs_mib", 1024)),
         gpu_devices=limits_raw.get("gpu_devices"),
     )
-    sandbox_image = candidate_config.get("image")
-    if not isinstance(sandbox_image, str) or not sandbox_image.strip():
-        parser.error("candidate config must set a prebuilt sandbox image")
-    try:
-        sandbox_image = validate_immutable_image_reference(sandbox_image)
-    except ValueError as exc:
-        parser.error(str(exc))
     candidate_id = candidate_config.get("candidate_id")
     if not isinstance(candidate_id, str):
         parser.error("candidate config must set candidate_id")
@@ -166,47 +165,67 @@ def main() -> None:
     except (TypeError, ValueError):
         parser.error("fault_injection keys must be non-negative batch indexes")
     sandbox_backend = candidate_config.get("sandbox_backend")
-    if sandbox_backend != "kubernetes":
-        parser.error("candidate config sandbox_backend must be kubernetes")
-    kubernetes = candidate_config.get("kubernetes")
-    if not isinstance(kubernetes, dict):
-        parser.error("Kubernetes backend requires a kubernetes config object")
-    required = ("shared_root", "pvc_name", "network_policy_name")
-    if any(not isinstance(kubernetes.get(key), str) or not kubernetes[key].strip() for key in required):
-        parser.error(f"Kubernetes config must set: {', '.join(required)}")
-    if shutil.which(args.kubectl_executable) is None:
-        parser.error(f"kubectl executable not found: {args.kubectl_executable}")
-    allowed = {
-        "shared_root", "pvc_name", "network_policy_name", "namespace",
-        "gpu_count", "network_policy_enforcement_verified",
-    }
-    if set(kubernetes) - allowed:
-        parser.error(f"unsupported Kubernetes settings: {sorted(set(kubernetes) - allowed)}")
-    if "pids_limit" in limits_raw or "gpu_devices" in limits_raw:
-        parser.error(
-            "Kubernetes does not implement per-Pod pids_limit or physical gpu_devices; "
-            "remove these settings and use kubernetes.gpu_count"
-        )
+    sandbox_image: str | None = None
+    if sandbox_backend == "local_shadow":
+        if "kubernetes" in candidate_config or "image" in candidate_config:
+            parser.error("local_shadow config must not include Kubernetes or image settings")
+        try:
+            sandbox = LocalShadowCandidateRunner(limits=limits, fault_injection=fault_schedule)
+        except ValueError as exc:
+            parser.error(f"local_shadow configuration is invalid: {exc}")
+    elif sandbox_backend == "kubernetes":
+        kubernetes = candidate_config.get("kubernetes")
+        if not isinstance(kubernetes, dict):
+            parser.error("Kubernetes backend requires a kubernetes config object")
+        required = ("shared_root", "pvc_name", "network_policy_name")
+        if any(not isinstance(kubernetes.get(key), str) or not kubernetes[key].strip() for key in required):
+            parser.error(f"Kubernetes config must set: {', '.join(required)}")
+        if shutil.which(args.kubectl_executable) is None:
+            parser.error(f"kubectl executable not found: {args.kubectl_executable}")
+        allowed = {
+            "shared_root", "pvc_name", "network_policy_name", "namespace",
+            "gpu_count", "network_policy_enforcement_verified",
+        }
+        if set(kubernetes) - allowed:
+            parser.error(f"unsupported Kubernetes settings: {sorted(set(kubernetes) - allowed)}")
+        if "pids_limit" in limits_raw or "gpu_devices" in limits_raw:
+            parser.error(
+                "Kubernetes does not implement per-Pod pids_limit or physical gpu_devices; "
+                "remove these settings and use kubernetes.gpu_count"
+            )
+        sandbox_image = candidate_config.get("image")
+        if not isinstance(sandbox_image, str) or not sandbox_image.strip():
+            parser.error("Kubernetes candidate config must set a prebuilt sandbox image")
+        try:
+            sandbox_image = validate_immutable_image_reference(sandbox_image)
+            sandbox = KubernetesJobCandidateSandbox(
+                image=sandbox_image, limits=limits,
+                kubectl_executable=args.kubectl_executable,
+                shared_root=kubernetes["shared_root"],
+                pvc_name=kubernetes["pvc_name"],
+                network_policy_name=kubernetes["network_policy_name"],
+                namespace=kubernetes.get("namespace", "default"),
+                gpu_count=kubernetes.get("gpu_count", 0),
+                network_policy_enforcement_verified=kubernetes.get(
+                    "network_policy_enforcement_verified", False
+                ),
+                fault_injection=fault_schedule,
+            )
+            sandbox.validate_shared_path(candidate_dir)
+            sandbox.validate_shared_path(base_path)
+            sandbox.validate_shared_path(args.output_dir)
+            sandbox.preflight()
+        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
+            parser.error(f"Kubernetes candidate preflight failed: {exc}")
+    else:
+        parser.error("candidate config sandbox_backend must be local_shadow or kubernetes")
+
     try:
-        sandbox = KubernetesJobCandidateSandbox(
-            image=sandbox_image, limits=limits,
-            kubectl_executable=args.kubectl_executable,
-            shared_root=kubernetes["shared_root"],
-            pvc_name=kubernetes["pvc_name"],
-            network_policy_name=kubernetes["network_policy_name"],
-            namespace=kubernetes.get("namespace", "default"),
-            gpu_count=kubernetes.get("gpu_count", 0),
-            network_policy_enforcement_verified=kubernetes.get(
-                "network_policy_enforcement_verified", False
-            ),
-            fault_injection=fault_schedule,
-        )
-        sandbox.validate_shared_path(candidate_dir)
-        sandbox.validate_shared_path(base_path)
-        sandbox.validate_shared_path(args.output_dir)
-        sandbox.preflight()
-    except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
-        parser.error(f"Kubernetes candidate preflight failed: {exc}")
+        validate_candidate_strategy(json.loads(
+            (candidate_dir / "candidate_strategy.json").read_text(encoding="utf-8")
+        ))
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        parser.error(f"candidate_dir must contain a valid candidate_strategy.json: {exc}")
 
     task = prepare_helpsteer2_long_horizon_task(
         _read_jsonl(args.train_jsonl),
@@ -241,10 +260,11 @@ def main() -> None:
                         else None
                     ),
                     "sandbox_backend": sandbox_backend,
+                    "sandbox_runner": sandbox.image,
                     "sandbox_image": sandbox_image,
-                    "sandbox_image_pinned": True,
+                    "sandbox_image_pinned": sandbox_backend == "kubernetes",
                     "sandbox_configuration": (
-                        sandbox.run_configuration() if sandbox_backend == "kubernetes" else {}
+                        sandbox.run_configuration()
                     ),
                     "fault_injection": fault_schedule,
                     "task_model_id": task_config.get("base_model_id"),

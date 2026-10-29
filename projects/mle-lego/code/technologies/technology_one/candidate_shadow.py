@@ -20,11 +20,13 @@ from .candidate_gate import (
 )
 from .candidate_proposal import read_candidate_manifest
 from .candidate_sandbox import (
+    LocalShadowCandidateRunner,
     KubernetesJobCandidateSandbox,
     SandboxMount,
     SandboxResult,
     hash_directory,
 )
+from .candidate_strategy import DEFAULT_STRATEGY, load_candidate_strategy
 from .long_horizon_task import LABELS
 
 
@@ -74,7 +76,7 @@ class LongHorizonCandidateShadow:
         candidate_id: str,
         candidate_dir: str | Path,
         output_dir: str | Path,
-        sandbox: KubernetesJobCandidateSandbox,
+        sandbox: LocalShadowCandidateRunner | KubernetesJobCandidateSandbox,
         command: Sequence[str],
         store: ArtifactStore,
         component_versions: Mapping[str, str] | None = None,
@@ -101,10 +103,9 @@ class LongHorizonCandidateShadow:
             ).hexdigest()
         self.require_proposal_manifest = require_proposal_manifest
         self.candidate_artifact_hash = hash_directory(self.candidate_dir)
-        if getattr(sandbox, "backend_name", None) != "kubernetes":
+        if getattr(sandbox, "backend_name", None) not in {"local_shadow", "kubernetes"}:
             raise ValueError(
-                "candidate sandbox backend must be kubernetes; "
-                "local and non-Kubernetes candidate execution is not allowed"
+                "candidate backend must be local_shadow or kubernetes"
             )
         self.sandbox = sandbox
         self.root = Path(output_dir).resolve()
@@ -146,7 +147,7 @@ class LongHorizonCandidateShadow:
                 "command": list(self.command),
                 "component_versions": self.component_versions,
                 "sandbox_backend": self.sandbox.backend_name,
-                "sandbox_image": self.sandbox.image,
+                "sandbox_runner": self.sandbox.image,
                 "task_config_overrides": self.task_config_overrides,
             }
         )
@@ -169,10 +170,10 @@ class LongHorizonCandidateShadow:
             "proposal_manifest_sha256": self.proposal_manifest_sha256,
             "require_proposal_manifest": self.require_proposal_manifest,
             "sandbox_backend": self.sandbox.backend_name,
-            "sandbox_image": self.sandbox.image,
+            "sandbox_runner": self.sandbox.image,
             "sandbox_configuration": (
                 self.sandbox.run_configuration()
-                if isinstance(self.sandbox, KubernetesJobCandidateSandbox)
+                if hasattr(self.sandbox, "run_configuration")
                 else {}
             ),
             "fault_injection": {
@@ -299,7 +300,7 @@ class LongHorizonCandidateShadow:
         candidate_version = DataSystemVersion(
             version_id=f"candidate-{self.candidate_id}-{self.candidate_hash[:12]}",
             parent_version_id=stable.version_id,
-            tool_versions=(("candidate-container", self.sandbox.image),),
+            tool_versions=(("candidate-runner", self.sandbox.image),),
             **versions,
         )
         return stable, CandidateVersion(
@@ -544,6 +545,11 @@ class LongHorizonCandidateShadow:
                 **dict(task_config),
                 **self.task_config_overrides,
                 "base_model_path": "/models/task",
+                "candidate_strategy": (
+                    load_candidate_strategy(self.candidate_dir)
+                    if (self.candidate_dir / "candidate_strategy.json").is_file()
+                    else DEFAULT_STRATEGY
+                ),
             },
             "seed": int(task_config.get("seed", 17)) + batch_index + 1,
         }
@@ -633,6 +639,11 @@ class LongHorizonCandidateShadow:
             "stable_parent_hash_before": stable_hash_before,
             "stable_parent_hash_after": stable_hash_after,
             "stable_parent_unchanged": isolated,
+            "candidate_output_isolated": bool(
+                result.backend == self.sandbox.backend_name
+                and getattr(self.sandbox, "isolation_evidence", {}).get("candidate_output_isolated")
+                and output_dir.resolve().is_relative_to(self.attempts_dir.resolve())
+            ),
             "candidate_parent_hash_before": parent_hash_before,
             "candidate_parent_hash_after": parent_hash_after,
             "candidate_output_dir": str(output_dir),
@@ -645,6 +656,9 @@ class LongHorizonCandidateShadow:
             ),
             "isolation_evidence": getattr(self.sandbox, "isolation_evidence", {}),
             "response_error": response_error,
+            "data_processing": (
+                response.get("data_processing") if isinstance(response, dict) else None
+            ),
             "reported_cost": cost,
             "mount_policy": {
                 "candidate_read_only": True,
@@ -653,17 +667,18 @@ class LongHorizonCandidateShadow:
                 "task_model_read_only": True,
                 "candidate_output_only_writable": True,
                 "candidate_output_storage": {
-                    "type": "bounded_tmpfs",
+                    "type": "bounded_tmpfs" if result.backend == "kubernetes" else "run_directory",
                     "max_mib": self.sandbox.limits.tmpfs_mib,
-                    "persisted_after_exit_by_trusted_host": True,
+                    "size_enforced_during_run": result.backend == "kubernetes",
                 },
-                "network": "disabled",
+                "network": "disabled" if result.backend == "kubernetes" else "host_network_available",
             },
         }
         checklist = SafetyChecklist(
-            sandboxed=(
-                result.backend == "kubernetes"
-                and evidence["container_isolation"]
+            candidate_branch_isolated=(
+                result.backend == self.sandbox.backend_name
+                and evidence["candidate_output_isolated"]
+                and isolated
                 and result.failure_code != "sandbox_unavailable"
             ),
             executable=result.status == "completed" and result.returncode == 0,
