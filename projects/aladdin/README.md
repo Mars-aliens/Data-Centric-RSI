@@ -2,6 +2,16 @@
 
 Aladdin 研究面向生成式任务的数据中心化递归改进流程，重点关注可用样本有限、用户要求会随着具体反馈逐步明确的场景。
 
+## 应用场景示例：生成式中文输入法
+
+一个有现实依据的目标应用是生成式中文输入法：系统需要把用户的原始按键序列转成中文，也可能根据上下文续写，或按用户要求改写文字。输入序列可能是完整拼音、简拼、混合输入或含错键的拼音；同一输入的可接受结果也可能因上下文和个人习惯而不同。用户通常通过选词、改字或修改生成结果表达偏好，因此输入日志、用户选择和修改记录可能成为有限且不完整的反馈来源。
+
+这一场景与 Aladdin 关注的问题相符：可用的高质量训练案例和明确偏好有限，人工逐条评审成本高，部分个性化要求要从实际使用和修改中逐渐显现。Aladdin 的三阶段流程可用于研究如何扩充候选训练数据、自动清理候选，并在相同评审预算下挑出更值得用户反馈的样本，再用反馈改进后续数据构建策略。
+
+任务例子和技术背景参考 Ding 等人的 GeneInput 论文（[arXiv:2311.01166](https://arxiv.org/abs/2311.01166)）：论文研究完整按键序列到汉字（FK2C）、智能联想和对话式改写，并讨论利用输入历史、用户信息及反馈优化系统。论文使用其自建 XF 数据集及特定输入法数据和模型；这不等于这些数据可直接获取，也不代表 Aladdin 已在输入法场景完成验证。
+
+**当前实验边界：** 现有实验一仍在 PRISM 对话数据上比较数据合成方法，是 Aladdin 数据构建流程的可行性验证，不是中文输入法实验。迁移到输入法前，需要另行确认可合法使用的数据集、按键序列及目标文本配对、输入噪声覆盖、适配的合成基线、任务模型和 top-k/人工偏好评测方案。不得把当前 PRISM 结果表述为输入法场景的效果证据。
+
 ## 当前研究方向
 
 ```text
@@ -19,6 +29,8 @@ Aladdin 研究面向生成式任务的数据中心化递归改进流程，重点
 
 三阶段候选对照与系统对照见 `docs/baseline-shortlist.md`。这些是可行性研究建议，不是已经验证的结论。完整试验方案见 `docs/feasibility-pilot-protocol.md`。
 
+三阶段分工和递归关系的简明说明见 `docs/three-stage-research-flow.md`。
+
 实验一的数据合成环节已有静态对照与 Qwen LoRA 下游评价 runner，默认比较 `seed-only`、固定提示词和改造版 Self-Instruct；任务适用并经确认后可加入改造版 Evol-Instruct。本环节不请求新人工反馈、不按人工意见筛候选；development 中已有的 PRISM 标签只用于统一的离线结果评价。生成模型和下游任务模型统一固定为 `Qwen/Qwen3-8B`，revision 为 `b968826d9c46dd6066d109eabc6255188de91218`，并关闭 thinking 模式。服务器正式运行命令见 `docs/server-quickstart.md`，方法和评价定义见 `docs/experiment-one-data-synthesis.md`。确定性测试不调用模型，也不能作为合成质量证据。
 
 协作者的环境配置、数据准备、API 预检、实验执行顺序和当前实现状态见 `docs/reproduction-runbook.md`。各实验阶段的目标模块、数据格式、算法接口、开发顺序和测试门槛见 `docs/implementation-design.md`。数据清洗、反馈选择、反馈驱动的递归更新及完整多轮 RSI 仍处于待实现阶段。
@@ -32,6 +44,7 @@ Linux 服务器按步骤执行的快速说明见 `docs/server-quickstart.md`。
 - `README.md`：研究范围和快速入口。
 - `CONTRIBUTING.md`：协作约定。
 - `docs/baseline-shortlist.md`：三阶段对照及系统对照建议。
+- `docs/three-stage-research-flow.md`：Aladdin 三阶段研究流程与当前实验对应关系。
 - `docs/feasibility-pilot-protocol.md`：当前可行性试验方案、数据集和预算决策。
 - `docs/experiment-one-data-synthesis.md`：实验一数据合成对照及运行步骤。
 - `docs/reproduction-runbook.md`：环境、数据、实验执行顺序及 GitHub 路径说明。
