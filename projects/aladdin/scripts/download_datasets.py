@@ -27,9 +27,9 @@ def download(dataset: str, data_root: Path, *, confirm_research_terms: bool = Fa
     registry = load_registry()
     if dataset not in registry:
         raise ValueError(f"unknown dataset: {dataset}")
-    if dataset == "prism" and not confirm_research_terms:
+    if dataset in {"prism", "lccc"} and not confirm_research_terms:
         raise ValueError(
-            "PRISM contains participant text and model responses under mixed terms. "
+            f"{dataset} has research-use, privacy, or source-data terms that require review. "
             "Review configs/datasets.json and pass --confirm-research-terms."
         )
     try:
@@ -55,7 +55,9 @@ def download(dataset: str, data_root: Path, *, confirm_research_terms: bool = Fa
         "repo_id": spec["repo_id"],
         "revision": spec["revision"],
         "files": {name: _file_metadata(target / name) for name in spec["files"]},
-        "terms_acknowledged": bool(confirm_research_terms) if dataset == "prism" else True,
+        "terms_acknowledged": (
+            bool(confirm_research_terms) if dataset in {"prism", "lccc"} else True
+        ),
     }
     (target / "download-manifest.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -65,7 +67,9 @@ def download(dataset: str, data_root: Path, *, confirm_research_terms: bool = Fa
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", choices=["prism", "helpsteer2", "all"], required=True)
+    parser.add_argument(
+        "--dataset", choices=["prism", "helpsteer2", "lccc", "all"], required=True
+    )
     parser.add_argument(
         "--data-root",
         default="data/raw",
@@ -74,7 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--confirm-research-terms",
         action="store_true",
-        help="confirm that PRISM terms, privacy, and non-redistribution rules were reviewed",
+        help="confirm that the selected dataset's research-use, privacy, and source-data terms were reviewed",
     )
     return parser
 

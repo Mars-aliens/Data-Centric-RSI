@@ -21,6 +21,7 @@ baselines/synthesis/*-upstream/
 *.pem
 server_profile*.json
 !server_profile.example.json
+configs/*.local.json
 
 # Generated reports and editor files.
 *.log

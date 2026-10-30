@@ -24,5 +24,24 @@
     ],
     "files": ["train.jsonl.gz", "validation.jsonl.gz", "preference/preference.jsonl.gz"],
     "primary_use": "controlled feedback replay and evaluator calibration"
+  },
+  "lccc": {
+    "repo_id": "silver/lccc",
+    "repo_type": "dataset",
+    "revision": "5bd582fa28cd7143f2f9c852e08e23089d677c44",
+    "license_summary": "Hugging Face card lists MIT; upstream project states research-only use. Underlying social-media text rights and human-review display conditions require review.",
+    "usage_requirements": [
+      "Review upstream research-only disclaimer and applicable source-data terms before downloading or displaying samples to human reviewers.",
+      "Do not redistribute raw data or records containing source dialogue text.",
+      "Audit source dialogue text for direct identifiers before generating or displaying derived samples.",
+      "Use only the base configuration official train, valid, and test files."
+    ],
+    "files": [
+      "lccc_base_train.jsonl.gz",
+      "lccc_base_valid.jsonl.gz",
+      "lccc_base_test.jsonl.gz"
+    ],
+    "primary_use": "candidate source for a Chinese contextual-continuation task; not real IME interaction data",
+    "status": "candidate_pending_terms_and_privacy_review"
   }
 }

@@ -170,7 +170,13 @@ def _run_synthesis(
     else:
         generation_parents = select_generation_parents(seeds, run_seed)
         rows = []
-        while len(rows) < args.max_candidates_per_strategy:
+        seen_pairs: set[tuple[str, str]] = set()
+        attempts = 0
+        target_unique = getattr(args, "synthetic_train_records", 1)
+        while (
+            len(seen_pairs) < target_unique
+            and attempts < args.max_candidates_per_strategy
+        ):
             if generator.usage.reported and (
                 generator.usage.prompt_tokens + generator.usage.completion_tokens
             ) >= args.generation_token_budget:
@@ -187,9 +193,17 @@ def _run_synthesis(
                 seed_value=run_seed + len(rows),
                 max_tokens=args.max_tokens,
                 temperature=args.temperature,
-                index_offset=len(rows),
+                index_offset=attempts,
             )
-            rows.extend(next_row)
+            attempts += 1
+            for row in next_row:
+                pair = (
+                    " ".join(str(row.get("input", "")).split()).casefold(),
+                    " ".join(str(row.get("output", "")).split()).casefold(),
+                )
+                if pair not in seen_pairs:
+                    seen_pairs.add(pair)
+                    rows.append(row)
             if generator.usage.requests != generator.usage.complete_usage_requests:
                 raise RuntimeError(
                     "endpoint omitted token usage; cannot verify the shared generation-token budget"
@@ -197,10 +211,22 @@ def _run_synthesis(
         if not rows:
             raise RuntimeError(f"{strategy} produced no candidate within the generation budget")
         used_tokens = generator.usage.prompt_tokens + generator.usage.completion_tokens
-        if used_tokens < args.generation_token_budget:
+        if used_tokens > args.generation_token_budget:
             raise RuntimeError(
-                f"candidate safety cap reached at {used_tokens} of "
-                f"{args.generation_token_budget} generation tokens; increase --max-candidates-per-strategy"
+                f"{strategy} exceeded the generation token budget: "
+                f"{used_tokens} > {args.generation_token_budget}; increase the budget"
+            )
+        if len(rows) < target_unique:
+            raise RuntimeError(
+                f"{strategy} produced only {len(rows)} unique candidates for "
+                f"{target_unique} synthetic training slots after {attempts} attempts "
+                f"and {used_tokens} of {args.generation_token_budget} generation tokens; "
+                "increase the generation budget/candidate cap or reduce synthetic-train-records"
+            )
+        if attempts >= args.max_candidates_per_strategy and used_tokens < args.generation_token_budget:
+            raise RuntimeError(
+                f"candidate safety cap reached after {attempts} attempts; "
+                "increase --max-candidates-per-strategy"
             )
     _write_jsonl(output, rows)
     usage = getattr(generator, "usage", None)
@@ -208,6 +234,8 @@ def _run_synthesis(
         "status": "completed",
         "strategy": strategy,
         "candidate_count": 0 if strategy == "seed-only" else len(rows),
+        "generation_attempts": attempts if generator else 0,
+        "duplicate_candidates_discarded": (attempts - len(rows)) if generator else 0,
         "seed_records_emitted": len(rows) if strategy == "seed-only" else 0,
         "unique_input_output_pairs": len(
             {(str(row.get("input", "")).strip(), str(row.get("output", "")).strip()) for row in rows}

@@ -2,6 +2,18 @@
 
 数据源和固定版本以 `configs/datasets.json` 为准。下载数据和派生样本保存在 Git 忽略的 `data/` 目录中。
 
+## LCCC-base（第二场景候选）
+
+- 数据卡：[thu-coai/lccc](https://huggingface.co/datasets/thu-coai/lccc)，上游：[thu-coai/CDial-GPT](https://github.com/thu-coai/CDial-GPT)。
+- 当前候选镜像版本：`silver/lccc@5bd582fa28cd7143f2f9c852e08e23089d677c44`；候选文件为 `lccc_base_train.jsonl.gz`、`lccc_base_valid.jsonl.gz`、`lccc_base_test.jsonl.gz`。
+- 记录结构为 `dialog: list[string]`。数据卡报告 train/valid/test 分别为 6,820,506/20,000/10,000 个对话；使用前核对下载文件和行数。
+- 上游 README 声明数据集仅限科研用途；镜像数据卡标注 MIT。上游还说明语料来源包括社交媒体，数据卡对个人信息收集和处理说明不足。故该镜像许可标注不能单独解决底层内容权利、人工展示和隐私处理问题。
+- **状态：候选，尚未批准下载或进入实验。** 完成研究用途、隐私处理和真人评审使用审查后，才可固定为实验数据源。禁止将原始语料或含原文的反馈/运行结果提交到仓库。
+- 完成审查后可显式下载：`python -m scripts.download_datasets --dataset lccc --confirm-research-terms`。转换入口为 `python -m scripts.prepare_lccc_association --confirm-research-terms --confirm-privacy-review`；这两个确认参数不能代替实际条款和隐私审查。常规 `--dataset all` 不包含 LCCC。
+- 准备脚本会校验下载 manifest、跨官方 split 规范化精确去重、按对话分组并把反馈池参考续写移入标签 sidecar；它不会执行直接身份信息过滤或近重复聚类，manifest 会明确记录这两项未执行。
+
+该语料只能用于构造对话语境续写任务，不包含真实输入法按键、候选采纳或修改记录。任务样本的截断、分组划分、反馈采集与实验边界见 `chinese-intelligent-association-protocol.md`。
+
 ## PRISM
 
 - 数据集：[HannahRoseKirk/prism-alignment](https://huggingface.co/datasets/HannahRoseKirk/prism-alignment)

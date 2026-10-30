@@ -6,7 +6,7 @@ Data-Centric RSI 是一个研究总项目，关注系统如何在多轮运行中
 
 | 项目 | 研究重点 | 当前状态 |
 |---|---|---|
-| MLE-Aladdin | 在需求部分未知的情况下构建生成式机器学习数据，包括校准反馈和主动反馈选择 | 已纳入 `projects/aladdin/`；来源提交 `6571f7d`；102 项测试通过 |
+| MLE-Aladdin | 少样本生成任务中的数据合成、数据清洗、反馈选择与递归更新 | 已按本地最新版同步到 `projects/aladdin/`；74 项测试通过 |
 | MLE-LEGO | 面向长周期稳定运行的 Data System 自我改进 | 已发布于 `projects/mle-lego/`；当前先进行技术一 pilot，技术二、三处于框架实现阶段 |
 
 两个子项目有各自的源码、协议、依赖和研究结论。总仓库中的两个 `projects/` 子目录是协同开发入口；它们仍保持命名空间、依赖和测试隔离。
@@ -26,7 +26,7 @@ Data-Centric-RSI/
 └── README.md
 ```
 
-`projects/aladdin/` 是从独立 Aladdin 仓库提交 `6571f7d` 导入的项目快照；后续总项目协作应以 GitHub 上对应目录的提交为准，并在 Aladdin 项目文档中记录同步来源。在两个项目明确共同接口之前，不建立总项目级共享代码包。
+`projects/aladdin/` 与 `projects/mle-lego/` 是两个独立项目目录，各自维护代码、依赖和实验协议。在两个项目明确共同接口之前，不建立总项目级共享代码包。
 
 ## 从这里开始
 
@@ -49,7 +49,7 @@ python -m pytest -q
 
 ```bash
 cd projects/aladdin
-python -m pytest local_experiments/tests core_system/tests -q
+python -m pytest -q
 ```
 
 数据集、模型权重、私有配置、检查点和运行结果均不纳入 Git。准备方式见 MLE-LEGO 的数据说明和服务器交接文档。

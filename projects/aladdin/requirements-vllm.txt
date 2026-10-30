@@ -1,0 +1,3 @@
+# Install in a separate service environment.
+# Match vLLM and PyTorch to the server CUDA driver.
+vllm>=0.8.5

@@ -103,7 +103,25 @@ Seed response:
 {output}
 
 Prior conversation context (may be empty):
-{context}""".format(**{**seed, "context": json.dumps(seed.get("context", []), ensure_ascii=False)})
+{context}
+
+Current confirmed requirements for future examples:
+{policy_guidance}""".format(
+        **{
+            **seed,
+            "context": json.dumps(seed.get("context", []), ensure_ascii=False),
+            "policy_guidance": _format_policy_guidance(seed.get("policy_guidance", [])),
+        }
+    )
+
+
+def _format_policy_guidance(guidance: Any) -> str:
+    if isinstance(guidance, str):
+        return guidance.strip() or "None recorded."
+    if isinstance(guidance, (list, tuple)):
+        values = [str(item).strip() for item in guidance if str(item).strip()]
+        return "\n".join(f"- {item}" for item in values) or "None recorded."
+    return "None recorded."
 
 
 def _self_instruct_input(seed: Record) -> str:
@@ -118,7 +136,16 @@ Seed response:
 {output}
 
 Prior conversation context (may be empty):
-{context}""".format(**{**seed, "context": json.dumps(seed.get("context", []), ensure_ascii=False)})
+{context}
+
+Current confirmed requirements for future examples:
+{policy_guidance}""".format(
+        **{
+            **seed,
+            "context": json.dumps(seed.get("context", []), ensure_ascii=False),
+            "policy_guidance": _format_policy_guidance(seed.get("policy_guidance", [])),
+        }
+    )
 
 
 def _answer_prompt(task_input: str, seed: Record) -> str:
@@ -135,11 +162,15 @@ Demonstration response:
 {seed_output}
 
 Prior conversation context (may be empty):
-{context}""".format(
+{context}
+
+Current confirmed requirements for future examples:
+{policy_guidance}""".format(
         task_input=task_input,
         seed_input=seed["input"],
         seed_output=seed["output"],
         context=json.dumps(seed.get("context", []), ensure_ascii=False),
+        policy_guidance=_format_policy_guidance(seed.get("policy_guidance", [])),
     )
 
 
@@ -169,12 +200,16 @@ def synthesize(
     max_tokens: int = 512,
     temperature: float = 0.7,
     index_offset: int = 0,
+    policy_guidance: Iterable[str] | None = None,
 ) -> list[Record]:
     if strategy not in STRATEGIES:
         raise ValueError(f"unknown synthesis strategy: {strategy}")
     if count < 0:
         raise ValueError("count must be non-negative")
     normalized = [normalize_seed(item, i) for i, item in enumerate(seeds)]
+    if policy_guidance:
+        guidance = [str(item).strip() for item in policy_guidance if str(item).strip()]
+        normalized = [{**item, "policy_guidance": guidance} for item in normalized]
     if not normalized:
         raise ValueError("at least one seed record is required")
     if strategy == "seed-only":

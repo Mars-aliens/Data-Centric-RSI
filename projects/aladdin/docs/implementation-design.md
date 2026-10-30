@@ -1,159 +1,100 @@
-# Aladdin 实现设计
+# Aladdin 实现说明
 
-本文将当前实验方案转化为代码层面的实现计划。文中会区分已经存在的模块与待实现模块，避免把设计写成仿佛已经可运行。当前可运行部分包括数据集工具、`experiments/experiment_one_synthesis.py` 中的静态合成对照 runner，以及 Qwen LoRA 训练和 development 评价；递归更新、清洗、反馈选择和 RSI controller 仍是后续开发目标。
+本文说明当前本地代码实际执行的 PRISM 主场景流程。它描述的是可运行实现，不代表已完成 GPU/API 试跑、真人反馈或确认性实验。LCCC 中文续写场景目前只实现数据准备工具，尚未接入此 RSI runner。
 
-本项目在公开 monorepo 中的路径为 `projects/aladdin/`。以下路径均相对于该目录。
+当前示例配置使用 `feedback_mode: model`：第三阶段由固定 revision 的 Qwen3-32B 生成模拟反馈，每组每轮固定评审条数，保存请求耗时、token 和失败尝试。以下交互式真人采集器作为可选模式保留；模型反馈不能计为真人反馈。final-test 支持 Qwen3-32B 自动盲评，交换顺序复评；同一反馈模型的最终评价只能作为模型评价证据。
 
-## 1. 系统运行结构
-
-将三个数据操作放进同一个 pipeline，由一个外层 RSI controller 管理：
+## 1. 运行流程
 
 ```text
-seed 样本
-  -> SynthesisStrategy.generate()
-  -> Cleaner.clean()
-  -> FeedbackSelector.select() -> AnnotationStore.release_labels()
-  -> PolicyUpdater.propose() -> PolicyReviewer.confirm()
-  -> 下一轮
+固定 seed
+  -> Qwen3-8B 按改造版 Self-Instruct 生成任务输入与回答
+  -> 确定性清洗，输出保留池和隔离池
+  -> 查询选择器从两池中选出待评审样本
+  -> 第三阶段采集真人判断、问题类型、修改/新要求和实际耗时
+     （model 模式由 Qwen3-32B 模拟生成，不计为真人）
+  -> 更新下一轮合成、清洗或选择策略
+  -> 使用 seed 与累计可用反馈重新训练 Qwen LoRA
+  -> 仅在 development 数据上评价
 ```
 
-Controller 负责轮次顺序、预算、版本 ID 和审计日志。每个阶段不能访问属于后续阶段的字段。尤其是 selector 只能接收候选内容和可见特征，不能读取隐藏标签；只有查询被选中后，才由标签存储释放对应反馈。开发和策略更新期间，controller 不加载 final-test 数据或标签。
+阶段一、二不读取本轮人工反馈，也不要求人逐条判断。阶段三选中样本后才请求真人反馈；反馈只影响下一轮。主 runner 只读取 `seed`、`development` 和 development 标签，不打开 `final_test`。
 
-反馈边界固定为：阶段一合成和阶段二清洗不读取本轮人工反馈，也不请求人逐条判断；阶段三选择查询后才释放相应标签和新收集的真人反馈。公开数据集的既有标签只能按冻结协议用于离线 development 结果评价或阶段三的独立回放，不得作为阶段一、二的交互反馈。
+## 2. 代码入口
 
-## 2. 目标代码目录
+| 路径 | 实际职责 |
+|---|---|
+| `experiments/synthesis/` | Self-Instruct 数据合成适配及 OpenAI-compatible API 调用 |
+| `experiments/cleaning/rules.py` | schema/空文本/重复输入/重复片段/精确与近重复清洗；输出隔离样本和原因 |
+| `experiments/feedback/selection.py` | development 用户组切分、选择器校准、随机/不确定性/反馈价值查询选择 |
+| `experiments/feedback/annotation.py` | 交互式真人标注、实际耗时记录、未完成队列续采 |
+| `experiments/rsi/policies.py` | 合成、清洗、反馈选择策略状态和版本更新 |
+| `experiments/rsi/runner.py` | 实验组调度、数据边界、预算、检查点和结果写出 |
+| `experiments/evaluation/qwen_sft.py` | Qwen3-8B LoRA SFT 和 development 成对偏好代理评价 |
+| `experiments/evaluation/blind_pairwise.py` | final-test 输出生成、盲化、真人成对评价与汇总 |
+| `configs/feedback-rsi-pilot.example.json` | 仅供工程试跑的参数示例 |
+
+运行入口：
+
+```bash
+python -m experiments.rsi --config configs/feedback-rsi-pilot.example.json
+python -m scripts.analyze_feedback_rsi runs/feedback-rsi-pilot/result.json
+```
+
+## 3. 主方法实现
+
+### 数据合成
+
+改造版 Self-Instruct 从 seed 选择父样本，先生成新任务输入，再生成对应回答。每条候选保留父样本、source group、轮次、合成策略版本、模型 ID 和 revision。接口必须逐请求返回 prompt/completion token 数，超过单组生成 token 预算时停止并报错。
+
+### 数据清洗
+
+`clean_candidates` 依次检查空/过短文本、回答重复输入、过度重复、精确重复和字符 n-gram TF-IDF 近重复。清洗器输出 `retained.jsonl`、`quarantine.jsonl` 和逐条决策。两类候选都能进入第三阶段查询池；pilot 配置默认将 25% 查询名额留给隔离池抽查，若某一池样本不足，剩余名额由另一池补足。
+
+### 数据选择与反馈
+
+每个查询是一条候选及其任务输入。随机策略在候选池内抽样；不确定性策略使用 development calibration 用户组拟合的字符 n-gram TF-IDF + Logistic Regression，按二元偏好熵排序；反馈价值策略使用
 
 ```text
-experiments/
-  synthesis/                 已有静态合成适配器和 runner
-  cleaning/                  确定性清洗和 judge 清洗器
-  feedback/                  查询对象、选择策略、标注输入输出
-  rsi/                       轮次 controller、策略版本和更新日志
-  evaluation/                Qwen SFT、下游评价与统计报告
-scripts/
-  prepare_*.py                数据集专用准备脚本
-  run_component.py            冻结组件对照入口
-  run_rsi.py                  多轮系统对照入口
-  analyze_run.py              manifest 校验和结果报告
-configs/
-  datasets.json               固定数据源和使用限制
-  pilot.example.json          与机器无关的实验参数示例
-tests/
-  test_synthesis_*.py
-  test_cleaning_*.py
-  test_feedback_*.py
-  test_rsi_*.py
-  test_evaluation_*.py
+偏好熵 × (1 + impact_weight × log(1 + 同源候选数)) ÷ 预计评审秒数
 ```
 
-服务器路径、endpoint、密钥、GPU 编号和下载数据不能写入跟踪的配置文件。允许本机配置通过环境变量覆盖路径；提交的配置示例只能包含占位值。
+该实现是待验证的反馈价值代理分数，不是已校准的真实效用。查询前不可读取 development 隐藏标签以外的任何本轮反馈；实际标注记录 `usable / needs_revision / unusable / cannot_judge`、问题类型、要求清晰度、可选修改/新要求、匿名标注者和真实耗时。
 
-## 3. 共用数据格式
+人工时间预算是目标上限。选择下一条查询前会用已记录耗时和预估耗时检查剩余预算；单次实际评审仍可能超过预算，结果会单独报告超出秒数。每种比较中所有组的首轮共享同一生成候选池；后续轮次允许不同反馈产生不同策略和候选。
 
-数据记录使用 JSONL，运行配置和 manifest 使用 JSON。每个模块边界都要校验 schema，并拒绝未知的 schema 版本。
+### RSI 策略更新
 
-### Candidate 记录
+- 合成策略：去重后的 `new_requirement` 作为下一轮生成约束，最多保留最近 8 条。
+- 清洗策略：一轮至少收到两条 `repetitive` 反馈时，下调下一轮的重复阈值。
+- 反馈选择策略：按 `actionable` 反馈比例调整下一轮 `impact_weight`，限制在 `[0, 2]`。
 
-```json
-{
-  "schema_version": 1,
-  "record_id": "stable-id",
-  "source_group_id": "prompt-or-user-group-id",
-  "parent_record_id": "seed-or-parent-id",
-  "input": "任务输入",
-  "context": [],
-  "output": "候选回答",
-  "round": 0,
-  "synthesis_strategy": "fixed-prompt",
-  "policy_version": "synthesis-v0",
-  "generation": {"model": "pinned-model-id", "requests": 1}
-}
-```
+策略变化和来源 query ID 写入 `policy-update.json`。固定策略组仍接收并使用相同流程的反馈训练监督，但不改变策略；消融组分别冻结一类更新。反馈不足时允许 `no_op`。
 
-不得把来源评分、隐藏偏好标签、标注者身份或 final-test 结果放进此记录，应分别保存在标签文件或事件文件中。所有派生记录都要保留 source group 和 parent，以便检查数据划分及 lineage。
+## 4. 比较入口和结果
 
-### 清洗决策
+`comparison` 可设为：
 
-每个输入候选对应一条决策记录，包含 `record_id`、`cleaner_id`、`cleaner_version`、`keep`、`reason_codes`、`duplicate_of`、确定性指标、judge 分数（若有）和时间戳。清洗器同时输出保留记录 ID 列表和完整决策日志；被拒绝的记录仍须保留，以供误删审计。
+| 值 | 运行组 |
+|---|---|
+| `overall` | `fixed_policy`、`recursive_policy` |
+| `ablation` | 完整递归组及冻结合成/清洗/反馈选择更新的三个消融组 |
+| `selection` | 随机、不确定性、反馈价值三种查询策略 |
+| `all` | 上述所有组 |
 
-### 反馈查询与事件
+每个 seed/组/轮次在独立目录保存候选、清洗决策、查询队列、反馈、训练数据、策略更新、LoRA adapter（启用时）和 development 指标。`result.json` 保存输入文件 hash、split manifest hash、代码 hash、模型 revision、预算、状态和汇总。development 结果只作开发诊断，不作为最终效果证据。
 
-查询记录包含 query ID、单条候选或同一输入下的一对候选、source group、轮次、选择策略/版本、预计评审秒数、评分分量和随机化后的显示顺序。反馈事件包含 query ID、假名化标注者 ID、可用性判断、原因标签、要求清晰度、可选修改建议、适用时的成对偏好、开始/结束时间戳、实际评审秒数和是否请求澄清。不同输入的回答不能伪造为成对比较。`cannot_judge` 和平局都是有效反馈。
+中断后可使用 `--resume`。恢复要求 output 下已有未完成的 `result.json`，且配置、输入 hash、split manifest 和 runner 代码 hash 完全匹配。已完成查询不会重复提问，已完成轮次不会重复训练；同一 output 目录不得同时运行多个进程。配置、数据或代码有变化时必须使用新 output 目录重新运行。
 
-### 策略更新事件
+final-test 盲评通过单独的 `scripts.final_blind_evaluation prepare/collect/analyze` 命令执行。只有在实验配置和分析方案冻结后才可读取 final-test；准备评审队列时，评分标签不会被加载。需要先保存待比较的两个 LoRA adapter。
 
-记录所用反馈事件 ID、前后策略版本、拟议变化、依据、人工确认状态、生效轮次和新版本生成的记录 ID。LLM 可以起草变更，但指定审核者确认前不能启用。该日志用来验证 RSI 更新是否真的发生且可追溯。
+## 5. 实现边界与验证
 
-## 4. 实施顺序
-
-### 步骤 A：冻结一份试验配置
-
-每次正式运行通过 CLI 固定数据路径、PRISM split manifest、生成/训练预算、随机种子和指标定义。实验一数据合成对照的生成模型与下游任务模型统一固定为 `Qwen/Qwen3-8B`，revision 为 `b968826d9c46dd6066d109eabc6255188de91218`；服务器 API 必须部署同一 revision，生成 API 和训练 chat template 均关闭 thinking 模式。运行 manifest 保存模型 ID、revision 和实际解析到的训练模型 commit。后续实验如需更换模型，须在新实验协议中预先冻结，不得混入同一对照矩阵。
-
-每次运行都将不可变配置副本写进 run 目录，并记录数据源文件哈希、代码版本、Python/依赖版本、CUDA 信息（如使用）、随机种子以及开始/结束时间。
-
-### 步骤 B：完成实验一的数据合成对照
-
-沿用 `experiments/synthesis/` 适配器。正式 runner `experiments/experiment_one_synthesis.py` 使用确定性 seed group 子集和共同服务端 token 上限。正式运行要求 endpoint 对每次请求返回 usage；Self-Instruct/Evol-Instruct 的所有请求均计入预算。预算末尾以完整候选结束并记录有限超额；候选安全上限先触发时运行失败。
-
-每种方法从相同 seed 出发生成候选；仅使用各臂相同的 schema 检查和文本规范化，不进行语义清洗、人工反馈或反馈更新。各臂使用相同训练记录数与 Qwen LoRA 配置，并按真实输入 token 数达到共同的下游训练预算。Development 评价仅读取 PRISM development 的独立标签 sidecar，输出 chosen/rejected 条件 log-probability 排序准确率和参考回答 NLL；这是固定的离线结果评价，不给生成器逐条反馈；禁止读取 final-test。实现见 `experiments/experiment_one_synthesis.py` 与 `experiments/evaluation/qwen_sft.py`。
-
-### 步骤 C：实现清洗（实验二）
-
-实现共用 `Cleaner` 接口，在完全相同的合成候选池上运行以下对照：
-
-1. `NoOpCleaner`：解析成功的候选保留；各臂都统计解析失败和空记录。
-2. `DeterministicCleaner`：先规范化并精确去重，再按字符 5-gram TF-IDF cosine 相似度阈值 `0.92` 过滤近重复。平分时采用确定性规则；每条删除记录都记录保留代表项和 `duplicate_of`。
-3. `QualityJudgeCleaner`：先运行确定性清洗，再交由固定版本 judge。只有 rubric 平均分不低于 `4/5` 且每个维度不低于 `3/5` 才保留。
-
-阶段二不安排人工校准或逐条审查。固定模型 judge 的分数只能作为自动代理信号；报告保留率、去重率、覆盖变化、处理成本和固定 development 集下游表现，不报告缺少人工真值时无法可靠计算的误删率/低质量残留率。需要人工抽查时，将其作为阶段三反馈查询并计入统一人工预算。当前活动代码中还没有清洗器实现。
-
-### 步骤 D：实现反馈选择（实验三）
-
-一个标注请求对应一条候选；仅当两个回答具有同一任务输入时才使用盲测成对比较。实现以下策略：
-
-1. `RandomSelector`：使用固定 seed，在符合条件的 query group 中均匀抽样。
-2. `PreferenceUncertaintySelector`：使用在 development 数据上校准的偏好模型，为同输入的比较打分；正式选择前冻结模型。
-3. `DisagreementSelector`：可选诊断策略，根据固定 judge 或 requirement 假设之间的分歧打分；不得将分歧当作正确性标签。
-4. `ImpactPerReviewCostSelector`：计算 `uncertainty * affected_pool_count / max(predicted_review_seconds, 1)`。在释放任何查询标签前，按冻结的 cluster 估算 affected-pool 数量。评审时间在试验前校准，不得使用当前隐藏答案更新预测值。
-
-所有策略按相同的累计实测人工分钟预算停止，不只对齐查询数量。随机化成对显示顺序，向标注者隐藏实验组别和选择分数。释放标签前先写入 query 和 annotation event。历史标签回放只能检查选择机制；真实人工时间必须在新生成候选的独立 live study 中测量。当前活动代码尚无 selector 或标注界面。
-
-### 步骤 E：实现策略更新和多轮 RSI
-
-先做 synthesis-only RSI，以便识别更新机制。固定实验一数据合成对照选出的合成 baseline，至少运行两轮，比较：
-
-- `R0 Fixed`：随机选择反馈，并作为相同的下游监督提供；但反馈不能改变下一轮合成策略。
-- `R1 Random-update`：随机选择反馈，并允许据此更新合成策略。
-- `R2 Aladdin-update`：按单位评审成本影响力选择反馈，再通过相同 updater 更新合成策略。
-
-三组的候选数、反馈分钟、清洗器、任务模型训练 token 和 development 评价预算必须一致。策略更新只允许使用人工确认可用的示范、明确修改建议和经确认的 requirement。保存策略差异及其来源事件。单独的 `unusable` 标签不能作为负训练目标。如果没有合理的更新，就记录 no-op，不要为了让 RSI 看起来发生而编造变更。当前尚无 updater 和轮次调度器。
-
-### 步骤 F：集成实验四
-
-只有实验一至三选出并冻结组件后，才运行 `feasibility-pilot-protocol.md` 中的四组：A 仅 seed；B 固定流程/随机反馈/不更新策略；C 随机反馈 RSI；D impact-per-review-cost RSI。所有组的 source group、候选数、judge 预算、任务模型版本、训练 token 和累计人工分钟必须相同。要声称合成与清洗分别受益，还须增加“仅更新合成”和“仅更新清洗”消融。
-
-冻结配置、阈值、标注者 rubric 和报告代码之前，不加载 final-test 文件。最终只做一次测试，报告成对偏好胜/平/负比例、按任务/source group 和标注者聚类的不确定性、标注者一致性、成本、每轮策略版本和排除记录。
-
-## 5. 各阶段必须通过的测试
-
-- 合成：seed 子集稳定、schema 合法、lineage 正确、随机种子可复现、请求/token 总量正确、endpoint 故障可处理。
-- 清洗：规范化去重正确、代表项稳定、阈值边界正确、保留/删除日志完整、误删审计分母正确。
-- 反馈：prompt group 不拆分、随机选择可复现、查询前不能访问隐藏标签、只构造同输入成对比较、按实际耗时正确停止。
-- RSI：能区分更新/不更新对照、策略版本不可变、反馈事件能追溯到下一轮样本、预算一致、final-test 路径从未被打开。
-- 分析：在独立 split/user 层级做配对比较、保留平局与 `cannot_judge`、提供置信区间和成本。
-
-当前已实现代码可运行以下本地检查：
+自动测试覆盖数据准备、清洗、反馈选择、策略更新、多轮运行恢复、查询池隔离、Qwen 训练预算边界和 final-test 盲评逻辑。运行：
 
 ```bash
 python -m pytest -q
 python -m compileall -q experiments scripts tests
 ```
 
-当前自动化测试覆盖已实现的数据工具、合成适配器及实验一数据合成对照的预算、抽样、泄漏防护和结果写出逻辑；它不替代目标服务器上的真实模型 API 与 GPU 运行验证。
-
-## 6. 当前实现边界
-
-**已实现：** 固定版本数据集下载器、PRISM/HelpSteer2 数据准备和审计、四种合成适配器、实验一数据合成对照的预算匹配矩阵 runner、Qwen LoRA 训练、development 代理评价和分析脚本。
-
-**后续仍须实现：** 清洗器和 judge 审计、反馈选择与真人标注事件采集、策略更新器/版本存储、多轮 controller 和系统对照。数据合成对照 runner 已完成本地确定性测试；还须在协作者服务器上验证真实模型 endpoint 和 GPU 训练。
+当前代码可以运行工程 pilot，但仍需在目标 Linux GPU/API 环境完成模型加载、真实生成、LoRA 训练、终端人工标注和实际耗时检查。pilot 结果不能作为确认性实验结论；正式运行前仍需冻结样本量、seed 数、人工时间预算、开发/测试评价方案，并完成数据许可和隐私审查。

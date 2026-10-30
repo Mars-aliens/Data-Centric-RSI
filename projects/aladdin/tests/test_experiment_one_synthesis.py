@@ -48,6 +48,16 @@ def test_synthesis_training_records_keep_fixed_seed_and_synthetic_slots():
     assert sum(row["record_id"].startswith("s") for row in rows) == 4
 
 
+def test_synthesis_training_records_reject_an_undersized_candidate_pool():
+    seeds = [{"record_id": "s1"}, {"record_id": "s2"}]
+    candidates = [{"record_id": "c1"}]
+    with pytest.raises(ValueError, match="candidate pool is smaller"):
+        build_synthesis_training_records(
+            seeds, candidates, strategy="fixed-prompt",
+            train_records=6, synthetic_train_records=2, seed=17,
+        )
+
+
 def test_group_balanced_schedule_and_pairwise_metrics():
     rows = [
         {"record_id": "a1", "source_group_id": "a"},

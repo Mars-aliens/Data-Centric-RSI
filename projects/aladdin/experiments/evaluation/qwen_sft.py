@@ -127,6 +127,13 @@ def build_synthesis_training_records(
         return build_training_schedule(seeds, train_records, seed=seed)
     if not 0 < synthetic_train_records < train_records:
         raise ValueError("synthetic_train_records must be positive and less than train_records")
+    unique_candidate_ids = {str(row.get("record_id") or "") for row in candidates}
+    if len(unique_candidate_ids) < synthetic_train_records:
+        raise ValueError(
+            "generated candidate pool is smaller than the requested synthetic slots: "
+            f"{len(unique_candidate_ids)} < {synthetic_train_records}; "
+            "increase the generation budget or reduce synthetic-train-records"
+        )
     return build_training_schedule(
         seeds, train_records - synthetic_train_records, seed=seed
     ) + build_training_schedule(candidates, synthetic_train_records, seed=seed + 1)
@@ -361,6 +368,7 @@ def train_and_evaluate(
     optimizer_steps = 0
     micro_batches_seen = 0
     accumulated_batches = 0
+    stopped_at_budget_boundary = False
     while tokens_seen < config.train_token_budget and optimizer_steps < config.max_steps:
         try:
             batch = next(iterator)
@@ -368,10 +376,14 @@ def train_and_evaluate(
             iterator = iter(loader)
             batch = next(iterator)
         inputs = {key: value.to(device) for key, value in batch.items()}
+        batch_tokens = int(inputs["attention_mask"].sum().item())
+        if tokens_seen + batch_tokens > config.train_token_budget:
+            stopped_at_budget_boundary = True
+            break
         result = model(**inputs)
         result.loss.backward()
         micro_batches_seen += 1
-        tokens_seen += int(inputs["attention_mask"].sum().item())
+        tokens_seen += batch_tokens
         supervised_tokens_seen += int(inputs["labels"].ne(-100).sum().item())
         accumulated_batches += 1
         if accumulated_batches >= config.gradient_accumulation_steps or tokens_seen >= config.train_token_budget:
@@ -384,7 +396,11 @@ def train_and_evaluate(
             accumulated_batches = 0
         loss_total += float(result.loss.detach().cpu())
 
-    if tokens_seen < config.train_token_budget:
+    if optimizer_steps == 0:
+        raise RuntimeError(
+            f"training could not complete one step within the {config.train_token_budget}-token budget"
+        )
+    if tokens_seen < config.train_token_budget and not stopped_at_budget_boundary:
         raise RuntimeError(
             f"training step safety cap reached at {tokens_seen} of {config.train_token_budget} tokens"
         )
@@ -410,6 +426,10 @@ def train_and_evaluate(
             "training_token_budget": config.train_token_budget,
             "training_tokens_seen": tokens_seen,
             "training_token_overshoot": tokens_seen - config.train_token_budget,
+            "training_budget_fully_consumed": tokens_seen >= config.train_token_budget,
+            "training_stop_reason": (
+                "token_budget_boundary" if stopped_at_budget_boundary else "token_budget_reached"
+            ),
             "supervised_training_tokens_seen": supervised_tokens_seen,
             "training_examples": len(train_records),
             "tokenized_training_examples": len(examples),

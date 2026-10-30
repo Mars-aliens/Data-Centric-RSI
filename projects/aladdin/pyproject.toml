@@ -14,13 +14,17 @@ dependencies = []
 data = ["huggingface_hub==0.36.0"]
 analysis = ["numpy==1.26.4", "scikit-learn==1.5.1"]
 dev = ["pytest==7.4.4"]
-qwen = ["transformers>=4.51.0", "accelerate>=0.28", "peft>=0.10"]
+qwen = ["torch>=2.6.0", "transformers>=4.51.0", "accelerate>=0.28", "peft>=0.10"]
 
 [project.scripts]
 aladdin-download-datasets = "scripts.download_datasets:main"
 aladdin-prepare-prism = "scripts.prepare_prism:main"
 aladdin-prepare-helpsteer2 = "scripts.prepare_helpsteer2:main"
+aladdin-prepare-lccc-association = "scripts.prepare_lccc_association:main"
 aladdin-audit-datasets = "scripts.audit_datasets:main"
+aladdin-run-feedback-rsi = "experiments.rsi.__main__:main"
+aladdin-analyze-feedback-rsi = "scripts.analyze_feedback_rsi:main"
+aladdin-final-blind-evaluation = "scripts.final_blind_evaluation:main"
 
 [tool.setuptools.packages.find]
 include = ["experiments*", "scripts*"]
