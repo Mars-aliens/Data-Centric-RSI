@@ -21,7 +21,7 @@ PRISM 主场景的多轮实验 runner 已在本地实现，覆盖自动合成、
 
 当前主实验设计按三项比较组织：整体递归收益、更新消融、反馈选择对照。详细流程见 `docs/feedback-driven-update-experiment.md`；已选方法与基线见 `docs/baseline-shortlist.md`。工程试跑配置位于 `configs/feedback-rsi-pilot.example.json`，它用于检查整条链路，不是确认性实验规模。
 
-协作者的环境配置、数据准备和主实验运行步骤见 `docs/reproduction-runbook.md`；Linux 服务器按步骤执行见 `docs/server-quickstart.md`。各模块的数据格式、接口和实现边界见 `docs/implementation-design.md`。
+协作者的环境配置、数据准备和主实验运行步骤见 `docs/reproduction-runbook.md`；Linux 服务器按步骤执行见 `docs/server-quickstart.md`。下一步先运行 `configs/experiment-one-single-seed.example.json`：实验一的两组完整配置、计划预算、单 seed，用于确认实验一全流程执行，不作为确认性结论。实验一通过后再运行更新消融和反馈选择矩阵。各模块的数据格式、接口和实现边界见 `docs/implementation-design.md`。
 
 人工反馈成本、主动偏好学习和标注分歧相关文献见 `docs/human-feedback-literature.md`。
 

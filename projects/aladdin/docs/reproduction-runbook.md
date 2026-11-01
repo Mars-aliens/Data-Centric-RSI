@@ -6,26 +6,26 @@
 
 执行 [server-quickstart.md](server-quickstart.md) 第 1 至第 4 步。
 
-## 小规模 pilot
+## 实验一：单 seed 完整配置 rehearsal
 
 ```bash
 .venv/bin/python -m scripts.check_model_services \
-  --config configs/feedback-rsi.local.json
+  --config configs/experiment-one-single-seed.local.json
 
 .venv/bin/python -m experiments.rsi \
-  --config configs/feedback-rsi.local.json
+  --config configs/experiment-one-single-seed.local.json
 
 .venv/bin/python -m scripts.analyze_feedback_rsi \
-  runs/feedback-rsi-pilot/result.json \
-  --output runs/feedback-rsi-pilot/analysis.json
+  runs/experiment-one-single-seed/result.json \
+  --output runs/experiment-one-single-seed/analysis.json
 ```
 
-配置文件 `configs/feedback-rsi-pilot.example.json` 的默认规模：1 个 seed、2 轮、每轮每组 4 个候选、2 条 Qwen3-32B 模拟反馈；`comparison` 保持 `overall`。
+配置文件 `configs/experiment-one-single-seed.example.json` 使用实验一的 `overall` 对照，仅设置一个 seed（17）。它包含 `fixed_policy` 和 `recursive_policy` 两个实验组、3 轮、每轮每组 32 个候选和 16 条 Qwen3-32B 模拟反馈；每个 adapter 的训练 token 预算为 100000，`max_steps=1000` 是安全上限。此运行验证实验一的完整配置能否执行，不是多 seed 确认性结果，也不运行 final-test。
 
 检查：
 
 ```bash
-.venv/bin/python - "runs/feedback-rsi-pilot/result.json" <<'PY'
+.venv/bin/python - "runs/experiment-one-single-seed/result.json" <<'PY'
 import json
 import sys
 
@@ -35,18 +35,21 @@ print("comparison:", data.get("comparison"))
 print("feedback_model:", data.get("configuration", {}).get("feedback_model"))
 print("final_test_accessed:", data.get("data", {}).get("final_test_accessed"))
 for name, arm in data.get("arms", {}).items():
-    print(name, "rounds:", len(arm.get("rounds", [])))
+    rounds = arm.get("rounds", [])
+    print(name, "rounds:", len(rounds), "training:", [row["training"].get("status") for row in rounds])
 PY
 ```
+
+完成条件：`status` 为 `completed`、`comparison` 为 `overall`、结果含 2 个 arm 且每个 arm 完成 3 轮、所有训练状态为 `completed`、每轮每组完成 16 条模型反馈，并且 `final_test_accessed` 为 `false`。
 
 ## 中断恢复
 
 ```bash
 .venv/bin/python -m experiments.rsi \
-  --config configs/feedback-rsi.local.json \
+  --config configs/experiment-one-single-seed.local.json \
   --resume
 ```
 
-## pilot 结束
+## rehearsal 结束
 
-确认 `result.json` 的 `status` 为 `completed` 后，查看 `analysis.json` 和日志，再决定是否扩大实验。
+确认两个组各 3 轮全部完成后，检查训练预算、反馈尝试日志和递归组策略版本变化。实验一 rehearsal 通过后，再运行实验二消融和实验三反馈选择；正式实验沿用冻结配置，只把 seeds 替换成预先确定的多 seed 列表。final-test 另行执行。
