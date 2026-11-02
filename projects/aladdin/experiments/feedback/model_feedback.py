@@ -38,8 +38,19 @@ def feedback_prompt(candidate: dict[str, Any]) -> str:
 def parse_feedback(text: str) -> dict[str, Any]:
     try:
         result = json.loads(text)
-    except (ValueError, TypeError) as exc:
-        raise ValueError("model feedback must be a JSON object") from exc
+    except (ValueError, TypeError):
+        # vLLM may return otherwise valid JSON inside a markdown code fence.
+        stripped = str(text or "").strip()
+        if stripped.startswith("```"):
+            stripped = stripped.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        elif not stripped.startswith("{"):
+            start, end = stripped.find("{"), stripped.rfind("}")
+            if start != -1 and end > start:
+                stripped = stripped[start : end + 1]
+        try:
+            result = json.loads(stripped)
+        except (ValueError, TypeError) as exc:
+            raise ValueError("model feedback must be a JSON object") from exc
     expected = {"judgment", "issue_code", "requirement_clarity", "corrected_output", "new_requirement"}
     if not isinstance(result, dict) or set(result) != expected:
         raise ValueError("model feedback must contain exactly the required fields")

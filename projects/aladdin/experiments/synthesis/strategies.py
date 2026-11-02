@@ -119,7 +119,13 @@ def _format_policy_guidance(guidance: Any) -> str:
     if isinstance(guidance, str):
         return guidance.strip() or "None recorded."
     if isinstance(guidance, (list, tuple)):
-        values = [str(item).strip() for item in guidance if str(item).strip()]
+        values = []
+        for item in guidance:
+            if isinstance(item, dict):
+                item = item.get("text")
+            value = str(item or "").strip()
+            if value:
+                values.append(value)
         return "\n".join(f"- {item}" for item in values) or "None recorded."
     return "None recorded."
 
@@ -200,16 +206,14 @@ def synthesize(
     max_tokens: int = 512,
     temperature: float = 0.7,
     index_offset: int = 0,
-    policy_guidance: Iterable[str] | None = None,
+    policy_guidance: Iterable[str | dict[str, Any]] | None = None,
 ) -> list[Record]:
     if strategy not in STRATEGIES:
         raise ValueError(f"unknown synthesis strategy: {strategy}")
     if count < 0:
         raise ValueError("count must be non-negative")
     normalized = [normalize_seed(item, i) for i, item in enumerate(seeds)]
-    if policy_guidance:
-        guidance = [str(item).strip() for item in policy_guidance if str(item).strip()]
-        normalized = [{**item, "policy_guidance": guidance} for item in normalized]
+    guidance = list(policy_guidance or [])
     if not normalized:
         raise ValueError("at least one seed record is required")
     if strategy == "seed-only":
@@ -233,6 +237,17 @@ def synthesize(
     results = []
     for index in range(count):
         parent = _seed_for(normalized, index, rng)
+        parent_guidance = []
+        for item in guidance:
+            if isinstance(item, dict):
+                source_group_id = str(item.get("source_group_id") or "")
+                if source_group_id and source_group_id != str(parent.get("source_group_id") or ""):
+                    continue
+                item = item.get("text")
+            value = str(item or "").strip()
+            if value:
+                parent_guidance.append(value)
+        parent = {**parent, "policy_guidance": parent_guidance}
         if strategy == "fixed-prompt":
             task_input, output = _parse_candidate(
                 call(_fixed_prompt(parent), max_tokens=max_tokens, temperature=temperature)
@@ -244,13 +259,13 @@ def synthesize(
 
         if strategy == "self-instruct":
             task_input = call(
-                _self_instruct_input(parent), max_tokens=max_tokens // 2, temperature=temperature
+                _self_instruct_input(parent), max_tokens=max(128, max_tokens // 2), temperature=temperature
             ).strip()
             if not task_input:
                 raise ValueError("Self-Instruct adapter generated an empty task input")
             output = call(
                 _answer_prompt(task_input, parent),
-                max_tokens=max_tokens - max_tokens // 2,
+                max_tokens=max_tokens,
                 temperature=temperature,
             ).strip()
             if not output:
@@ -262,13 +277,13 @@ def synthesize(
 
         operation = EVOLUTION_OPERATIONS[(index_offset + index) % len(EVOLUTION_OPERATIONS)]
         task_input = call(
-            _evolve_input(parent, operation), max_tokens=max_tokens // 2, temperature=temperature
+            _evolve_input(parent, operation), max_tokens=max(128, max_tokens // 2), temperature=temperature
         ).strip()
         if not task_input:
             raise ValueError("Evol-Instruct adapter generated an empty evolved task input")
         output = call(
             _answer_prompt(task_input, parent),
-            max_tokens=max_tokens - max_tokens // 2,
+            max_tokens=max_tokens,
             temperature=temperature,
         ).strip()
         if not output:

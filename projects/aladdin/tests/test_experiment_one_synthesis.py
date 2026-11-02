@@ -77,6 +77,16 @@ def test_group_balanced_schedule_and_pairwise_metrics():
     assert metrics == {"pairwise_comparisons": 2, "pairwise_accuracy": 0.75}
 
 
+def test_training_set_keeps_all_valid_feedback_records():
+    from experiments.rsi.runner import _make_training_set
+
+    seeds = [{"record_id": f"s{i}", "source_group_id": f"s{i}", "input": "q", "output": "a"} for i in range(3)]
+    feedback = [{"record_id": f"f{i}", "source_group_id": f"f{i}", "input": "q", "output": "a"} for i in range(5)]
+    rows = _make_training_set(seeds, feedback, count=8, seed=17)
+    assert len(rows) == 8
+    assert sum(row["record_id"].startswith("f") for row in rows) == 5
+
+
 def test_prompt_includes_context_and_input():
     prompt = format_prompt({"context": [{"role": "user", "content": "Earlier"}], "input": "Now"})
     assert "Earlier" in prompt

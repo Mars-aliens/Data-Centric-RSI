@@ -35,11 +35,23 @@ def update_policy_state(
 
     if update_synthesis:
         guidance = list(updated["synthesis"].get("guidance", []))
-        known = {str(value).strip().casefold() for value in guidance}
+        known = {
+            str(value.get("text") if isinstance(value, dict) else value).strip().casefold()
+            for value in guidance
+        }
         for event in feedback_events:
             requirement = str(event.get("new_requirement") or "").strip()
             if requirement and requirement.casefold() not in known:
-                guidance.append(requirement)
+                source_group_id = str(event.get("source_group_id") or "").strip()
+                guidance.append(
+                    {
+                        "text": requirement,
+                        "source_group_id": source_group_id,
+                        "query_id": str(event.get("query_id") or ""),
+                    }
+                    if source_group_id
+                    else requirement
+                )
                 known.add(requirement.casefold())
                 applied["synthesis"].append(str(event.get("query_id") or ""))
         if guidance != updated["synthesis"].get("guidance", []):

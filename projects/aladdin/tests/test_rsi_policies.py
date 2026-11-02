@@ -28,3 +28,15 @@ def test_empty_feedback_is_recorded_as_noop():
     updated, event = update_policy_state(initial_policy_state(), [])
     assert event["status"] == "no_op"
     assert updated == initial_policy_state()
+
+
+def test_synthesis_guidance_records_feedback_source_group():
+    updated, _ = update_policy_state(
+        initial_policy_state(),
+        [{"query_id": "q1", "source_group_id": "user-a", "new_requirement": "Use a table."}],
+        update_cleaning=False,
+        update_selection=False,
+    )
+    assert updated["synthesis"]["guidance"] == [
+        {"text": "Use a table.", "source_group_id": "user-a", "query_id": "q1"}
+    ]

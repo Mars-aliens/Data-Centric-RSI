@@ -67,6 +67,10 @@ def test_model_feedback_schema_rejects_unexpected_fields():
         parse_feedback(json.dumps(response))
 
 
+def test_model_feedback_accepts_json_code_fence():
+    assert parse_feedback("```json\n" + _response() + "\n```")["judgment"] == "needs_revision"
+
+
 def test_failed_review_resumes_without_repeating_completed_queries(tmp_path):
     path = tmp_path / "feedback.jsonl"
     with pytest.raises(ValueError):

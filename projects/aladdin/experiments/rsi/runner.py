@@ -330,7 +330,7 @@ def _default_config() -> dict[str, Any]:
         "estimated_review_seconds": 90,
         "calibration_fraction": 0.35,
         "calibration_seed": 1701,
-        "generation_token_budget_per_arm_round": 30000,
+        "generation_token_budget_per_arm_round": 60000,
         "max_tokens": 512,
         "temperature": 0.7,
         "train_records": 256,
@@ -494,15 +494,28 @@ def _make_training_set(
     count: int,
     seed: int,
 ) -> list[dict[str, Any]]:
-    pool = [
+    seed_pool = [
         {**row, "synthesis_strategy": "seed"}
         for row in seed_records
         if str(row.get("input") or "").strip() and str(row.get("output") or "").strip()
     ]
-    pool.extend(feedback_records)
-    if not pool:
+    valid_feedback = [
+        row for row in feedback_records
+        if str(row.get("input") or "").strip() and str(row.get("output") or "").strip()
+    ]
+    if not seed_pool and not valid_feedback:
         raise ValueError("training pool has no non-empty input/output records")
-    return build_training_schedule(pool, count, seed=seed)
+    feedback_count = min(len(valid_feedback), count)
+    seed_count = count - feedback_count
+    selected = []
+    if valid_feedback:
+        selected.extend(build_training_schedule(valid_feedback, feedback_count, seed=seed + 1))
+    if seed_count:
+        if not seed_pool:
+            raise ValueError("training pool has no seed records for the requested feedback quota")
+        selected.extend(build_training_schedule(seed_pool, seed_count, seed=seed))
+    random.Random(seed + 2).shuffle(selected)
+    return selected
 
 
 def _training_config(config: dict[str, Any], *, seed: int, adapter_path: Path | None) -> QwenSFTConfig:
