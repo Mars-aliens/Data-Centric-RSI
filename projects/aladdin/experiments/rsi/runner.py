@@ -40,6 +40,8 @@ from experiments.feedback.model_feedback import (
     collect_model_feedback,
 )
 from experiments.rsi.policies import initial_policy_state, update_policy_state
+from experiments.rsi.requirements import evaluate_requirement_compliance
+from experiments.rsi.requirements import validate_requirement_schedule
 from experiments.synthesis.generator import OpenAICompatibleGenerator
 from experiments.synthesis.strategies import synthesize
 
@@ -63,6 +65,13 @@ class Arm:
 ARMS = {
     "fixed_policy": Arm("fixed_policy", "feedback-value", False, False, False),
     "recursive_policy": Arm("recursive_policy", "feedback-value", True, True, True),
+    "full_requirement_reference": Arm("full_requirement_reference", "feedback-value", False, False, False),
+    "synthesis_only": Arm("synthesis_only", "feedback-value", True, False, False),
+    "cleaning_only": Arm("cleaning_only", "feedback-value", False, True, False),
+    "selection_only": Arm("selection_only", "feedback-value", False, False, True),
+    "synthesis_cleaning": Arm("synthesis_cleaning", "feedback-value", True, True, False),
+    "synthesis_selection": Arm("synthesis_selection", "feedback-value", True, False, True),
+    "cleaning_selection": Arm("cleaning_selection", "feedback-value", False, True, True),
     "freeze_synthesis": Arm("freeze_synthesis", "feedback-value", False, True, True),
     "freeze_cleaning": Arm("freeze_cleaning", "feedback-value", True, False, True),
     "freeze_selection": Arm("freeze_selection", "feedback-value", True, True, False),
@@ -74,7 +83,19 @@ ARMS = {
 COMPARISONS = {
     "overall": ("fixed_policy", "recursive_policy"),
     "ablation": ("recursive_policy", "freeze_synthesis", "freeze_cleaning", "freeze_selection"),
+    "factorial": (
+        "fixed_policy",
+        "synthesis_only",
+        "cleaning_only",
+        "selection_only",
+        "synthesis_cleaning",
+        "synthesis_selection",
+        "cleaning_selection",
+        "recursive_policy",
+    ),
     "selection": ("query_random", "query_uncertainty", "query_feedback_value"),
+    "requirements": ("fixed_policy", "recursive_policy", "full_requirement_reference"),
+    "data_budget": ("fixed_policy", "recursive_policy"),
     "all": tuple(ARMS),
 }
 
@@ -227,6 +248,10 @@ def _validate_config(config: dict[str, Any]) -> dict[str, Any]:
     config = {**_default_config(), **config}
     if config["feedback_mode"] not in {"human", "model"}:
         raise ValueError("feedback_mode must be human or model")
+    if comparison == "requirements":
+        config["requirement_schedule"] = validate_requirement_schedule(
+            config.get("requirement_schedule"), int(config["rounds"])
+        )
     if config["feedback_mode"] == "model":
         if config["feedback_model"] != FEEDBACK_MODEL_ID or config["feedback_model_revision"] != FEEDBACK_MODEL_REVISION:
             raise ValueError("model feedback requires the pinned Qwen3-32B revision")
@@ -553,6 +578,11 @@ def _configured_initial_state(config: dict[str, Any]) -> dict[str, Any]:
     return state
 
 
+def _requirements_released(config: dict[str, Any], round_index: int) -> list[dict[str, Any]]:
+    schedule = config.get("requirement_schedule") or []
+    return [item for item in schedule if int(item["release_round"]) <= round_index]
+
+
 def _find_round_result(
     document: dict[str, Any], arm_name: str, seed: int, round_index: int
 ) -> dict[str, Any] | None:
@@ -576,6 +606,8 @@ def _restore_arm_history(
     before_round: int,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     state = _configured_initial_state(config)
+    if config.get("comparison") == "requirements" and arm_name == "full_requirement_reference":
+        state["synthesis"]["guidance"] = [item["text"] for item in config["requirement_schedule"]]
     accumulated_feedback: list[dict[str, Any]] = []
     for round_index in range(before_round):
         if _find_round_result(document, arm_name, seed, round_index) is None:
@@ -725,6 +757,11 @@ def run_feedback_rsi(
                         seed=run_seed,
                         before_round=round_index,
                     )
+                    if (round_index == 0 and config["comparison"] == "requirements"
+                            and arm.name == "full_requirement_reference"):
+                        state["synthesis"]["guidance"] = [
+                            item["text"] for item in config["requirement_schedule"]
+                        ]
                     states[arm.name] = state
                     accumulated_feedback[arm.name] = prior_feedback
                     completed = _find_round_result(document, arm.name, run_seed, round_index)
@@ -935,6 +972,30 @@ def run_feedback_rsi(
                         raise ValueError(f"feedback event references unknown arm: {arm_name}")
                     events_by_arm[arm_name].append(event)
 
+                if config["comparison"] == "requirements":
+                    scheduled = [
+                        item for item in config["requirement_schedule"]
+                        if int(item["release_round"]) == round_index
+                    ]
+                    if scheduled:
+                        requirement = scheduled[0]
+                        for arm_name, arm_events in events_by_arm.items():
+                            if not arm_events:
+                                raise ValueError("requirement release needs at least one selected feedback event per arm")
+                            event = arm_events[0]
+                            if (event.get("requirement_release") or {}).get("requirement_id") == requirement["requirement_id"]:
+                                continue
+                            current = str(event.get("new_requirement") or "").strip()
+                            text = str(requirement["text"])
+                            event["new_requirement"] = f"{current}\n{text}".strip() if current else text
+                            event["actionable"] = True
+                            event["requirement_release"] = {
+                                "requirement_id": requirement["requirement_id"],
+                                "release_round": round_index,
+                                "source": "controlled_requirement_schedule",
+                            }
+                    _write_jsonl(feedback_path, events)
+
                 attempt_path = feedback_path.with_name(feedback_path.stem + ".model-attempts.jsonl")
                 attempts = _read_jsonl(attempt_path) if config["feedback_mode"] == "model" and attempt_path.exists() else []
 
@@ -988,6 +1049,12 @@ def run_feedback_rsi(
                     )
                     if int(training_metrics.get("pairwise_comparisons", 0)) <= 0:
                         raise RuntimeError("development evaluation produced no chosen/rejected comparisons")
+                    requirement_metrics = None
+                    if config["comparison"] == "requirements":
+                        released = _requirements_released(config, round_index)
+                        requirement_metrics = evaluate_requirement_compliance(
+                            arm_candidates[arm.name], released
+                        )
                     review_seconds = sum(float(row.get("duration_seconds") or 0) for row in arm_events)
                     round_result = {
                         "seed": run_seed,
@@ -1016,6 +1083,7 @@ def run_feedback_rsi(
                         "model_feedback_completion_tokens": sum(int(row["completion_tokens"]) for row in arm_attempts) if expected_source == "model_simulated" else None,
                         "actionable_feedback_count": sum(bool(row.get("actionable")) for row in arm_events),
                         "policy_update": policy_event,
+                        "requirement_compliance": requirement_metrics,
                         "training_feedback_examples_cumulative": len(accumulated_feedback[arm.name]),
                         "training": training_metrics,
                     }
@@ -1046,6 +1114,7 @@ def _select_seed_groups(
         raise ValueError("seed records must have non-empty source_group_id values")
     if limit > len(groups):
         raise ValueError(f"requested {limit} seed groups but only {len(groups)} are available")
+    # Stable shuffled prefix makes lower budgets nested within larger budgets.
     random.Random(seed).shuffle(groups)
     selected = set(groups[:limit])
     return [row for row in records if str(row["source_group_id"]) in selected]

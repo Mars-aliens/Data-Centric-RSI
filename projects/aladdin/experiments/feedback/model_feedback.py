@@ -65,6 +65,24 @@ def parse_feedback(text: str) -> dict[str, Any]:
     return result
 
 
+def read_feedback_attempts(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    attempts = []
+    with path.open("r", encoding="utf-8") as stream:
+        for line_number, line in enumerate(stream, start=1):
+            if not line.strip():
+                continue
+            try:
+                attempt = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"invalid model attempt JSON at {path}:{line_number}") from exc
+            if not isinstance(attempt, dict):
+                raise ValueError(f"model attempt must be an object at {path}:{line_number}")
+            attempts.append(attempt)
+    return attempts
+
+
 def collect_model_feedback(
     queries: list[dict[str, Any]], *, output_path: Path, generator: Any,
     model_revision: str, max_tokens: int, temperature: float,
@@ -84,6 +102,11 @@ def collect_model_feedback(
         if any(event.get(key) != queue_by_id[event["query_id"]].get(key) for key in ("record_id", "arm_id", "source_group_id", "round", "selection_method")):
             raise ValueError("stored model feedback metadata does not match queue")
     attempt_path = output_path.with_name(output_path.stem + ".model-attempts.jsonl")
+    previous_attempts = read_feedback_attempts(attempt_path)
+    attempts_by_query: dict[str, int] = {}
+    for previous_attempt in previous_attempts:
+        query_id = str(previous_attempt.get("query_id") or "")
+        attempts_by_query[query_id] = attempts_by_query.get(query_id, 0) + 1
     for query in queries:
         if query["query_id"] in completed:
             continue
@@ -92,6 +115,8 @@ def collect_model_feedback(
         start = time.monotonic()
         started = datetime.now(timezone.utc).isoformat()
         status = "error"
+        raw = None
+        failure = None
         try:
             raw = generator.generate(feedback_prompt(query["candidate"]), max_tokens=max_tokens, temperature=temperature)
             delta = (usage.requests - before[0], usage.complete_usage_requests - before[1],
@@ -100,19 +125,29 @@ def collect_model_feedback(
                 raise ValueError("feedback endpoint must report prompt and completion token usage")
             parsed = parse_feedback(raw)
             status = "success"
+        except Exception as exc:
+            failure = {"type": type(exc).__name__, "message": str(exc)}
+            raise
         finally:
             duration = max(0.0, time.monotonic() - start)
+            ended = datetime.now(timezone.utc).isoformat()
             attempt = {
                 "query_id": query["query_id"], "arm_id": query["arm_id"], "status": status,
+                "attempt_index": attempts_by_query.get(query["query_id"], 0) + 1,
                 "model": MODEL_ID, "model_revision": model_revision, "prompt_version": PROMPT_VERSION,
-                "duration_seconds": duration, "requests": 1,
+                "started_at_utc": started, "ended_at_utc": ended,
+                "duration_seconds": duration,
+                "requests": usage.requests - before[0],
                 "usage_complete": usage.complete_usage_requests - before[1] == 1,
                 "prompt_tokens": usage.prompt_tokens - before[2],
                 "completion_tokens": usage.completion_tokens - before[3],
                 "complete_usage_requests": usage.complete_usage_requests - before[1],
+                "raw_response": raw,
+                "error": failure,
             }
             with attempt_path.open("a", encoding="utf-8", newline="\n") as stream:
                 stream.write(json.dumps(attempt, ensure_ascii=False, allow_nan=False) + "\n")
+            attempts_by_query[query["query_id"]] = attempt["attempt_index"]
         event = {
             "schema_version": 1, "feedback_source": "model_simulated",
             **{key: query.get(key) for key in ("query_id", "record_id", "source_group_id", "arm_id", "round", "selection_method")},

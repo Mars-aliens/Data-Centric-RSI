@@ -32,6 +32,78 @@ def test_training_schedule_equalizes_count_without_mutating_records():
     assert rows == [{"record_id": "a"}, {"record_id": "b"}]
 
 
+def test_training_schedule_uses_each_record_once_before_repeating():
+    rows = [
+        {"record_id": "a1", "source_group_id": "a", "input": "a1", "output": "x"},
+        {"record_id": "a2", "source_group_id": "a", "input": "a2", "output": "x"},
+        {"record_id": "a3", "source_group_id": "a", "input": "a3", "output": "x"},
+        {"record_id": "b1", "source_group_id": "b", "input": "b1", "output": "x"},
+        {"record_id": "c1", "source_group_id": "c", "input": "c1", "output": "x"},
+    ]
+
+    selected = build_training_schedule(rows, len(rows), seed=17)
+
+    assert len(selected) == len(rows)
+    assert {row["record_id"] for row in selected} == {row["record_id"] for row in rows}
+
+
+def test_training_schedule_is_independent_of_input_order_and_arm_record_ids():
+    rows = [
+        {"record_id": "arm-a-1", "source_group_id": "a", "input": "one", "output": "A"},
+        {"record_id": "arm-a-2", "source_group_id": "a", "input": "two", "output": "B"},
+        {"record_id": "arm-b-1", "source_group_id": "b", "input": "three", "output": "C"},
+        {"record_id": "arm-c-1", "source_group_id": "c", "input": "four", "output": "D"},
+    ]
+    other_arm = [
+        {**row, "record_id": row["record_id"].replace("arm-a", "arm-b").replace("arm-b", "arm-c")}
+        for row in reversed(rows)
+    ]
+
+    left = build_training_schedule(rows, 3, seed=17)
+    right = build_training_schedule(other_arm, 3, seed=17)
+
+    semantic = lambda selected: [
+        (row["source_group_id"], row["input"], row["output"]) for row in selected
+    ]
+    assert semantic(left) == semantic(right)
+
+
+def test_round_zero_training_content_matches_across_arms():
+    from experiments.rsi.runner import _feedback_training_records, _make_training_set
+
+    seeds = [
+        {"record_id": f"seed-{i}", "source_group_id": f"seed-group-{i}", "input": f"seed {i}", "output": f"answer {i}"}
+        for i in range(8)
+    ]
+    candidates = [
+        {"record_id": f"arm-{arm}-candidate-{i}", "source_group_id": f"group-{i % 4}",
+         "input": f"query {i}", "output": f"candidate answer {i}", "context": []}
+        for arm in ("a",) for i in range(8)
+    ]
+
+    def arm_training(arm):
+        arm_candidates = [
+            {**row, "record_id": row["record_id"].replace("arm-a", f"arm-{arm}")}
+            for row in reversed(candidates)
+        ]
+        events = [
+            {"query_id": f"{arm}-query-{i}", "record_id": row["record_id"],
+             "judgment": "usable", "feedback_source": "model_simulated"}
+            for i, row in enumerate(arm_candidates)
+        ]
+        feedback = _feedback_training_records(arm_candidates, events)
+        return _make_training_set(seeds, feedback, count=12, seed=17)
+
+    def semantic(rows):
+        return sorted(
+            (row.get("source_group_id"), tuple((turn.get("role"), turn.get("content")) for turn in row.get("context", [])),
+             row.get("input"), row.get("output"))
+            for row in rows
+        )
+
+    assert semantic(arm_training("b")) == semantic(arm_training("c"))
+
+
 def test_synthesis_training_records_keep_fixed_seed_and_synthetic_slots():
     seeds = [{"record_id": "s1"}, {"record_id": "s2"}]
     candidates = [{"record_id": "c1"}, {"record_id": "c2"}]

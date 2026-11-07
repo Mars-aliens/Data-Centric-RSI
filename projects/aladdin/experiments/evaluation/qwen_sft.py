@@ -8,6 +8,7 @@ the final-test split is deliberately rejected by the public entry point.
 from __future__ import annotations
 
 import gc
+import json
 import math
 import random
 import re
@@ -80,7 +81,7 @@ def format_prompt(record: dict[str, Any], tokenizer: Any | None = None) -> str:
 def build_training_schedule(
     records: list[dict[str, Any]], target_count: int, *, seed: int = 17
 ) -> list[dict[str, Any]]:
-    """Choose exactly target_count records, cycling only when necessary.
+    """Choose a group-balanced schedule without replacement until the pool cycles.
 
     Equalizing the number of training examples is important for S0, which has
     no generated candidates, and the generated strategies.
@@ -91,26 +92,67 @@ def build_training_schedule(
         raise ValueError("at least one training record is required")
     rng = random.Random(seed)
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for index, record in enumerate(records):
-        group = str(record.get("source_group_id") or record.get("record_id") or index)
+    stable_records = sorted(
+        records,
+        key=lambda record: json.dumps(
+            (
+                str(record.get("source_group_id") or ""),
+                record.get("context") or [],
+                str(record.get("input") or ""),
+                str(record.get("output") or ""),
+            ),
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        ),
+    )
+    for index, record in enumerate(stable_records):
+        group = str(record.get("source_group_id") or "")
+        if not group:
+            group = json.dumps(
+                (record.get("context") or [], str(record.get("input") or ""), str(record.get("output") or "")),
+                ensure_ascii=False,
+                sort_keys=True,
+                default=str,
+            )
+        if not group:
+            group = str(index)
         buckets[group].append(record)
     groups = sorted(buckets)
     rng.shuffle(groups)
     for bucket in buckets.values():
         rng.shuffle(bucket)
     positions = {group: 0 for group in groups}
+    selected_by_group = {group: 0 for group in groups}
     selected = []
+
+    # Exhaust the unique pool first so every available example is used before
+    # any example is repeated. A second phase keeps repeats balanced by group.
     while len(selected) < target_count:
+        available = [group for group in groups if positions[group] < len(buckets[group])]
+        if not available:
+            break
         for group in groups:
             bucket = buckets[group]
             position = positions[group]
             if position >= len(bucket):
-                rng.shuffle(bucket)
-                position = 0
+                continue
             selected.append(bucket[position])
             positions[group] = position + 1
+            selected_by_group[group] += 1
             if len(selected) == target_count:
-                break
+                return selected
+
+    repeat_positions = {group: 0 for group in groups}
+    while len(selected) < target_count:
+        least_used = min(selected_by_group.values())
+        eligible = [group for group in groups if selected_by_group[group] == least_used]
+        group = eligible[rng.randrange(len(eligible))]
+        bucket = buckets[group]
+        position = repeat_positions[group] % len(bucket)
+        selected.append(bucket[position])
+        repeat_positions[group] += 1
+        selected_by_group[group] += 1
     return selected
 
 

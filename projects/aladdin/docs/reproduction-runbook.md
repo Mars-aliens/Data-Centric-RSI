@@ -1,12 +1,155 @@
 # Aladdin 实验运行命令
 
-所有命令在 `projects/aladdin/` 目录执行。
+所有命令在 Linux 服务器的 `Data-Centric-RSI/projects/aladdin/` 目录执行。下面从环境和数据已按 `server-quickstart.md` 准备完成开始，依次运行五个 smoke。
+
+## 当前实验顺序
+
+| 顺序 | 实验 | 当前配置状态 |
+|---|---|---|
+| 1 | 整体效果：固定策略 vs 完整递归策略 | smoke：`experiment-one-smoke.example.json`；完整 rehearsal：`experiment-one-single-seed.example.json` |
+| 2 | 更新机制：合成/清洗/选择的 8 组因子实验 | smoke：`experiment-two-factorial-smoke.example.json`；pilot：`experiment-two-factorial.example.json` |
+| 3 | 反馈效率：固定候选池下的三种选择策略 | smoke：`experiment-three-selection-smoke.example.json`；固定池 pilot：`experiment-three-selection-fixed-pool.example.json` |
+| 4 | 少样本适用性：低/中/高初始数据量 | smoke 配置：`experiment-four-data-budget-smoke.example.json`；嵌套预算 sweep runner 已实现 |
+| 5 | 需求逐步明确：分轮释放新要求 | smoke 配置：`experiment-five-requirements-smoke.example.json`；受控要求释放与客观合规率已实现 |
+
+依次运行实验一至实验五各自的 smoke；全部通过后再运行完整 rehearsal/pilot。Smoke 只验证执行链路、数据产物和指标生成，不支持方法效果结论。五个 smoke 都使用单 seed 和小预算，会实际调用 Qwen3-8B、Qwen3-32B，并在训练 GPU 上执行 LoRA 训练。
+
+**执行顺序：**先运行本文件中的“实验一 smoke”至“实验五 smoke”五节。中间出现的“完整配置 rehearsal”“完整因子实验”“固定候选池下的反馈选择”先不要运行；等五个 smoke 全部通过后，再运行这些完整配置。
 
 ## 环境、数据和模型服务
 
-执行 [server-quickstart.md](server-quickstart.md) 第 1 至第 4 步。
+先完整执行 [server-quickstart.md](server-quickstart.md) 第 1 至第 3 步：安装训练环境和依赖、下载并准备 PRISM、启动 Qwen3-8B 和 Qwen3-32B 服务。`server-quickstart.md` 中的 `<PyTorch版本>`、`<PyTorch CUDA wheel源>`、GPU 编号及模型服务 GPU 数量必须替换成服务器实际值。
+
+在训练环境终端进入项目目录并设置变量：
+
+```bash
+cd Data-Centric-RSI/projects/aladdin
+source .venv/bin/activate
+export ALADDIN_ROOT="$PWD"
+export PYTHON_BIN="$ALADDIN_ROOT/.venv/bin/python"
+export PYTHONPATH="$ALADDIN_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+export OPENAI_API_KEY="<模型服务要求的API密钥；本机服务不校验时填任意非空值>"
+export CUDA_VISIBLE_DEVICES="<空闲训练GPU编号>"
+```
+
+先确认数据文件和 GPU 可用：
+
+```bash
+test -s data/processed/prism/seed.jsonl
+test -s data/processed/prism/development.jsonl
+test -s data/processed/prism/labels/development-labels.jsonl
+nvidia-smi
+```
+
+两个模型服务必须从训练服务器可访问。若服务与训练进程在同一台机器，示例配置中的 `127.0.0.1:8000` 和 `127.0.0.1:8001` 可直接使用；若服务在别的机器，把每个 smoke 的本地配置中 `endpoint`、`feedback_endpoint` 改成对应服务地址。`base_model` 必须是训练服务器能读取的 Qwen3-8B 模型 ID 或本地模型目录。配置中的 `output` 指向本次运行专用目录；重跑时改成一个新的目录名，不能复用已有的非空输出目录。
+
+以下每个实验都按“复制配置、检查/修改配置、检查服务、运行、分析、验收”顺序执行。复制命令只在首次准备该 smoke 配置时执行；已有 `.local.json` 时保留并继续使用，不要覆盖本地配置。
+
+## 实验一 smoke：单 seed、1 轮、小预算
+
+复制独立 smoke 配置。首次运行时将三个服务/路径字段改成服务器实际值：`endpoint`、`feedback_endpoint`、`base_model`。若输出目录已经存在，在配置中把 `output` 改成新的目录：
+
+```bash
+test -e configs/experiment-one-smoke.local.json || cp configs/experiment-one-smoke.example.json configs/experiment-one-smoke.local.json
+${EDITOR:-vi} configs/experiment-one-smoke.local.json
+```
+
+运行并生成分析文件：
+
+```bash
+export CUDA_VISIBLE_DEVICES=<训练GPU>
+
+"$PYTHON_BIN" -m scripts.check_model_services \
+  --config configs/experiment-one-smoke.local.json
+
+"$PYTHON_BIN" -m experiments.rsi \
+  --config configs/experiment-one-smoke.local.json
+
+"$PYTHON_BIN" -m scripts.analyze_feedback_rsi \
+  runs/experiment-one-smoke/result.json \
+  --output runs/experiment-one-smoke/analysis.json
+```
+
+Smoke 完成条件：`status=completed`、`comparison=overall`、两个 arm 各完成 1 轮训练、每 arm 收到 2 条模型反馈、训练状态为 `completed`、`final_test_accessed=false`。检查结果：
+
+```bash
+"$PYTHON_BIN" - "runs/experiment-one-smoke/result.json" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+print("status:", data.get("status"))
+print("comparison:", data.get("comparison"))
+print("final_test_accessed:", data.get("data", {}).get("final_test_accessed"))
+for name, arm in data.get("arms", {}).items():
+    print(name, "rounds:", len(arm.get("rounds", [])),
+          "feedback:", [row.get("completed_feedback_events") for row in arm.get("rounds", [])],
+          "training:", [row.get("training", {}).get("status") for row in arm.get("rounds", [])])
+PY
+```
+
+Smoke 未通过时，先检查 `runs/experiment-one-smoke/` 下的 `result.json`、各 arm 的 `round-0/` 产物和 `seed-17/feedback/round-0.model-attempts.jsonl`；修复后在本地配置中设置新的 `output` 目录再重跑，不复用不完整目录。
+
+## 实验二 smoke：8 组、1 seed、1 轮、小预算
+
+```bash
+test -e configs/experiment-two-factorial-smoke.local.json || cp configs/experiment-two-factorial-smoke.example.json configs/experiment-two-factorial-smoke.local.json
+${EDITOR:-vi} configs/experiment-two-factorial-smoke.local.json
+
+"$PYTHON_BIN" -m scripts.check_model_services --config configs/experiment-two-factorial-smoke.local.json
+"$PYTHON_BIN" -m experiments.rsi --config configs/experiment-two-factorial-smoke.local.json
+"$PYTHON_BIN" -m scripts.analyze_feedback_rsi \
+  runs/experiment-two-factorial-smoke/result.json \
+  --output runs/experiment-two-factorial-smoke/analysis.json
+```
+
+完成条件：`status=completed`、`comparison=factorial`、8 个 arm 各完成 1 轮、每 arm 收到 2 条反馈、训练完成、`final_test_accessed=false`，且 analysis 含 `factorial_update_effects`。这只验证八组执行和分析管线，不检验统计效应。
+
+打印关键结果：
+
+```bash
+"$PYTHON_BIN" - "runs/experiment-two-factorial-smoke/result.json" "runs/experiment-two-factorial-smoke/analysis.json" <<'PY'
+import json, sys
+run = json.load(open(sys.argv[1], encoding="utf-8"))
+analysis = json.load(open(sys.argv[2], encoding="utf-8"))
+print("status:", run.get("status"), "comparison:", run.get("comparison"))
+print("arms:", len(run.get("arms", {})), "analysis keys:", list(analysis))
+print("final_test_accessed:", run.get("data", {}).get("final_test_accessed"))
+PY
+```
+
+## 实验三 smoke：固定候选池、3 组、1 seed、1 轮、小预算
+
+```bash
+test -e configs/experiment-three-selection-smoke.local.json || cp configs/experiment-three-selection-smoke.example.json configs/experiment-three-selection-smoke.local.json
+${EDITOR:-vi} configs/experiment-three-selection-smoke.local.json
+
+"$PYTHON_BIN" -m scripts.check_model_services --config configs/experiment-three-selection-smoke.local.json
+"$PYTHON_BIN" -m experiments.rsi --config configs/experiment-three-selection-smoke.local.json
+"$PYTHON_BIN" -m scripts.analyze_feedback_rsi \
+  runs/experiment-three-selection-smoke/result.json \
+  --output runs/experiment-three-selection-smoke/analysis.json
+```
+
+完成条件：`status=completed`、`comparison=selection`、三个选择 arm 各完成 1 轮、每 arm 收到 2 条反馈、训练完成、`final_test_accessed=false`。三组首轮共享候选池；这只验证选择实验管线，不用于判断哪种策略更好。
+
+打印关键结果：
+
+```bash
+"$PYTHON_BIN" - "runs/experiment-three-selection-smoke/result.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+print("status:", data.get("status"), "comparison:", data.get("comparison"))
+print("arms:", sorted(data.get("arms", {})))
+print("final_test_accessed:", data.get("data", {}).get("final_test_accessed"))
+for name, arm in data.get("arms", {}).items():
+    print(name, "rounds:", len(arm.get("rounds", [])), "feedback:", [r.get("completed_feedback_events") for r in arm.get("rounds", [])])
+PY
+```
 
 ## 实验一：单 seed 完整配置 rehearsal
+
+Smoke 通过后，按 [server-quickstart.md](server-quickstart.md) 第 4 步创建 `configs/experiment-one-single-seed.local.json`，确认恢复为示例完整预算：3 轮、每组每轮 32 个候选和 16 条反馈、每 adapter 100000 训练 token。
 
 ```bash
 .venv/bin/python -m scripts.check_model_services \
@@ -53,3 +196,156 @@ PY
 ## rehearsal 结束
 
 确认两个组各 3 轮全部完成后，检查训练预算、反馈尝试日志和递归组策略版本变化。实验一 rehearsal 通过后，再运行实验二消融和实验三反馈选择；正式实验沿用冻结配置，只把 seeds 替换成预先确定的多 seed 列表。final-test 另行执行。
+
+## 实验二：三项更新的完整因子实验
+
+```bash
+.venv/bin/python -m scripts.check_model_services \
+  --config configs/experiment-two-factorial.example.json
+
+.venv/bin/python -m experiments.rsi \
+  --config configs/experiment-two-factorial.example.json
+
+.venv/bin/python -m scripts.analyze_feedback_rsi \
+  runs/experiment-two-factorial/result.json \
+  --output runs/experiment-two-factorial/analysis.json
+```
+
+该配置包含合成、清洗、选择三种策略更新的全部 8 种开关组合，可估计三个主效应和交互作用。示例配置仍为单 seed pilot；正式运行前依据 pilot 的 seed-level 方差和预先设定的最小有意义差异冻结 seed 数与分析方案。
+
+检查：
+
+```bash
+.venv/bin/python - "runs/experiment-two-factorial/result.json" <<'PY'
+import json
+import sys
+
+data = json.loads(open(sys.argv[1], encoding="utf-8").read())
+print("status:", data.get("status"))
+print("comparison:", data.get("comparison"))
+print("final_test_accessed:", data.get("data", {}).get("final_test_accessed"))
+print("arms:", sorted(data.get("arms", {})))
+for name, arm in data.get("arms", {}).items():
+    rounds = arm.get("rounds", [])
+    print(name, "rounds:", len(rounds), "training:", [row["training"].get("status") for row in rounds])
+PY
+```
+
+完成条件：`status` 为 `completed`、`comparison` 为 `factorial`、结果含 8 个 arm 且每个 arm 完成 3 轮、所有训练状态为 `completed`，并且 `final_test_accessed` 为 `false`。分析文件应包含 `factorial_update_effects`。
+
+## 实验三：固定候选池下的反馈选择
+
+```bash
+.venv/bin/python -m scripts.check_model_services \
+  --config configs/experiment-three-selection-fixed-pool.example.json
+
+.venv/bin/python -m experiments.rsi \
+  --config configs/experiment-three-selection-fixed-pool.example.json
+
+.venv/bin/python -m scripts.analyze_feedback_rsi \
+  runs/experiment-three-selection-fixed-pool/result.json \
+  --output runs/experiment-three-selection-fixed-pool/analysis.json
+```
+
+检查：
+
+```bash
+.venv/bin/python - "runs/experiment-three-selection-fixed-pool/result.json" <<'PY'
+import json
+import sys
+
+data = json.loads(open(sys.argv[1], encoding="utf-8").read())
+print("status:", data.get("status"))
+print("comparison:", data.get("comparison"))
+print("final_test_accessed:", data.get("data", {}).get("final_test_accessed"))
+for name, arm in data.get("arms", {}).items():
+    rounds = arm.get("rounds", [])
+    print(name, "rounds:", len(rounds), "training:", [row["training"].get("status") for row in rounds])
+PY
+```
+
+完成条件：`status` 为 `completed`、`comparison` 为 `selection`、结果含 `query_random`、`query_uncertainty`、`query_feedback_value` 三个 arm，且每个 arm 完成 1 轮、每 arm 反馈数相同、训练状态为 `completed`，并且 `final_test_accessed` 为 `false`。三组 round-0 的生成候选语义多重集应相同；不相同则本次不能用于选择策略的干净对照。
+
+## 实验四：少样本适用性
+
+运行低/高两个小预算档，确认 sweep、嵌套 seed groups、两组训练及配对差汇总可用：
+
+```bash
+test -e configs/experiment-four-data-budget-smoke.local.json || cp configs/experiment-four-data-budget-smoke.example.json configs/experiment-four-data-budget-smoke.local.json
+${EDITOR:-vi} configs/experiment-four-data-budget-smoke.local.json
+
+"$PYTHON_BIN" -m scripts.check_model_services \
+  --config configs/experiment-four-data-budget-smoke.local.json
+
+"$PYTHON_BIN" -m scripts.run_data_budget_sweep \
+  --config configs/experiment-four-data-budget-smoke.local.json
+```
+
+自动检查 sweep 汇总、两档运行结果和配对差：
+
+```bash
+"$PYTHON_BIN" - "runs/experiment-four-data-budget-smoke/sweep-summary.json" <<'PY'
+import json, sys
+from pathlib import Path
+
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data.get("status") == "completed", data.get("status")
+assert data.get("comparison") == "data_budget_sweep", data.get("comparison")
+assert data.get("nested_budgets") is True
+assert data.get("seed_group_limits") == [2, 4]
+assert len(data.get("runs", [])) == 2
+for run in data["runs"]:
+    assert set(run.get("arms", {})) == {"fixed_policy", "recursive_policy"}
+    result_path = Path(run["output"]) / "result.json"
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result.get("status") == "completed", result_path
+    assert set(result.get("arms", {})) == {"fixed_policy", "recursive_policy"}
+    for arm in result["arms"].values():
+        assert len(arm.get("rounds", [])) == 1
+        assert arm["rounds"][0]["training"].get("status") == "completed"
+    delta = next(row for row in data["paired_development_deltas"]
+                 if row["seed_group_limit"] == run["seed_group_limit"])
+    assert "17" in delta["per_seed_recursive_minus_fixed"]
+    print("budget", run["seed_group_limit"], "OK:", result_path)
+print("Experiment 4 smoke: PASS")
+PY
+```
+
+通过条件：`status=completed`、`comparison=data_budget_sweep`、`nested_budgets=true`、预算档为 `[2,4]`；`runs` 中两档各有 `fixed_policy` 和 `recursive_policy`，对应的 `result.json` 均存在且状态为 `completed`；每档的 `paired_development_deltas` 都含 seed `17`。正式实验使用预先冻结的低/中/高组数，并在 seed-level 配对分析中检验策略与数据量交互。
+
+## 实验五：需求逐步明确
+
+smoke 使用 3 轮：第 2 轮开始前释放一条客观长度要求，检查递归策略能否把该要求带入第 3 轮合成提示，并输出逐轮合规率。smoke 中的 schedule 是受控测试输入，不是真人偏好数据。
+
+```bash
+test -e configs/experiment-five-requirements-smoke.local.json || cp configs/experiment-five-requirements-smoke.example.json configs/experiment-five-requirements-smoke.local.json
+${EDITOR:-vi} configs/experiment-five-requirements-smoke.local.json
+
+"$PYTHON_BIN" -m scripts.check_model_services --config configs/experiment-five-requirements-smoke.local.json
+"$PYTHON_BIN" -m experiments.rsi --config configs/experiment-five-requirements-smoke.local.json
+"$PYTHON_BIN" -m scripts.analyze_feedback_rsi \
+  runs/experiment-five-requirements-smoke/result.json \
+  --output runs/experiment-five-requirements-smoke/analysis.json
+```
+
+完成条件：`status=completed`、`comparison=requirements`、fixed/recursive/full-requirement-reference 三组各 3 轮、`final_test_accessed=false`；第 2 轮反馈记录含 `requirement_release.source=controlled_requirement_schedule`；recursive 第 3 轮策略状态包含新要求；每轮 `requirement_compliance` 中有该要求的 `rate`。此 smoke 验证要求释放机制和指标产出，不证明真实用户适应效果。
+
+打印关键结果：
+
+```bash
+"$PYTHON_BIN" - "runs/experiment-five-requirements-smoke/result.json" "runs/experiment-five-requirements-smoke/analysis.json" <<'PY'
+import json, sys
+run = json.load(open(sys.argv[1], encoding="utf-8"))
+print("status:", run.get("status"), "comparison:", run.get("comparison"))
+print("arms:", sorted(run.get("arms", {})))
+print("final_test_accessed:", run.get("data", {}).get("final_test_accessed"))
+for name, arm in run.get("arms", {}).items():
+    print(name, "rounds:", len(arm.get("rounds", [])), "compliance:", [r.get("requirement_compliance") for r in arm.get("rounds", [])])
+analysis = json.load(open(sys.argv[2], encoding="utf-8"))
+print("analysis keys:", list(analysis))
+PY
+```
+
+## 支撑验证和最终盲评
+
+清洗审计、Qwen3-32B 与真人反馈一致性、故障恢复、预算/噪声敏感性属于支撑验证，不替代五个主实验。`final_test` 只能在五个主实验的代码、模型、策略、阈值、seed 和分析方法冻结后，通过独立 blind pairwise 流程运行。

@@ -1,7 +1,71 @@
 import json
+from collections import Counter
+from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from experiments.rsi.runner import MODEL_REVISION, PRISM_REPOSITORY, PRISM_REVISION, run_feedback_rsi
+
+
+@pytest.mark.parametrize("comparison", ["overall", "ablation", "factorial", "selection", "all"])
+def test_comparison_matrix_runs_multiple_seeds_and_rounds(tmp_path, comparison):
+    from experiments.rsi.runner import ARMS, COMPARISONS
+    from experiments.rsi.analysis import analyze_result
+
+    config = _make_inputs(tmp_path)
+    config.update(comparison=comparison, seeds=[17, 23], rounds=2,
+                  candidate_count_per_arm_round=4, query_count_per_arm_round=2)
+    calls = []
+
+    def collector(queries, **kwargs):
+        events = _collector(queries, **kwargs)
+        for event in events:
+            event["issue_code"] = "repetitive"
+        _write_jsonl(kwargs["output_path"], events)
+        return events
+
+    result = run_feedback_rsi(
+        config, generator_factory=lambda _: FakeGenerator(), trainer=_trainer(calls),
+        feedback_collector=collector, annotator_id="synthetic-test-fixture",
+    )
+    assert result["status"] == "completed"
+    assert set(result["arms"]) == set(COMPARISONS[comparison])
+    assert len(calls) == len(COMPARISONS[comparison]) * 4
+    assert result["data"]["final_test_accessed"] is False
+
+    def semantic(rows):
+        return Counter(json.dumps(
+            [row.get("source_group_id"), row.get("context", []), row.get("input"), row.get("output")],
+            sort_keys=True,
+        ) for row in rows)
+
+    root = Path(config["output"])
+    for seed in config["seeds"]:
+        generated = []
+        training = []
+        for arm_name, arm in result["arms"].items():
+            rounds = [row for row in arm["rounds"] if row["seed"] == seed]
+            assert len(rounds) == 2
+            definition = ARMS[arm_name]
+            for row in rounds:
+                changes = row["policy_update"]["changes"]
+                for component in ("synthesis", "cleaning", "selection"):
+                    enabled = getattr(definition, "update_" + component)
+                    if not enabled:
+                        assert component not in changes
+                    if enabled and row["round"] == 0:
+                        assert component in changes
+                assert row["completed_feedback_events"] == 2
+            directory = root / f"seed-{seed}" / arm_name / "round-0"
+            generated.append(semantic([json.loads(line) for line in (directory / "generated.jsonl").read_text().splitlines()]))
+            training.append(semantic([json.loads(line) for line in (directory / "training.jsonl").read_text().splitlines()]))
+        assert all(pool == generated[0] for pool in generated)
+        if comparison in {"overall", "ablation", "factorial"}:
+            assert all(pool == training[0] for pool in training)
+    report = analyze_result(result)
+    if comparison in {"factorial", "all"}:
+        assert report["factorial_update_effects"]["paired_seeds"] == 2
 
 
 class FakeGenerator:
@@ -133,6 +197,51 @@ def test_feedback_rsi_runs_all_phases_without_opening_final_test(tmp_path):
     assert result["arms"]["recursive_policy"]["rounds"][1]["training_feedback_examples_cumulative"] >= 2
     assert len(calls) == 4
     assert (tmp_path / "runs" / "pilot" / "result.json").is_file()
+
+
+def test_requirements_release_adapts_recursive_guidance_and_reports_compliance(tmp_path):
+    config = _make_inputs(tmp_path)
+    config.update(
+        comparison="requirements",
+        output=str(tmp_path / "runs" / "requirements"),
+        rounds=3,
+        candidate_count_per_arm_round=2,
+        query_count_per_arm_round=1,
+        train_records=4,
+        requirement_schedule=[{
+            "requirement_id": "short-output",
+            "release_round": 1,
+            "text": "Keep each response under 40 characters.",
+            "criterion": {"type": "max_chars", "field": "output", "value": 40},
+        }],
+    )
+    prompts = []
+
+    class CapturingGenerator(FakeGenerator):
+        def generate(self, prompt, *, max_tokens, temperature):
+            prompts.append(prompt)
+            return super().generate(prompt, max_tokens=max_tokens, temperature=temperature)
+
+    result = run_feedback_rsi(
+        config,
+        generator_factory=lambda _: CapturingGenerator(),
+        trainer=_trainer([]),
+        feedback_collector=_collector,
+        annotator_id="controlled-smoke-reviewer",
+    )
+
+    assert result["status"] == "completed"
+    assert set(result["arms"]) == {"fixed_policy", "recursive_policy", "full_requirement_reference"}
+    recursive_round2 = [prompt for prompt in prompts if "Keep each response under 40 characters." in prompt]
+    assert recursive_round2
+    for arm in result["arms"].values():
+        assert all(row["requirement_compliance"] is not None for row in arm["rounds"])
+    assert "synthesis" in result["arms"]["recursive_policy"]["rounds"][1]["policy_update"]["changes"]
+    assert "synthesis" not in result["arms"]["fixed_policy"]["rounds"][1]["policy_update"]["changes"]
+    full_reference_round0 = result["arms"]["full_requirement_reference"]["rounds"][0]
+    assert full_reference_round0["policy_update"]["state_before"]["synthesis"]["guidance"] == [
+        "Keep each response under 40 characters."
+    ]
 
 
 def test_interrupted_feedback_rsi_resumes_from_round_checkpoints(tmp_path):
