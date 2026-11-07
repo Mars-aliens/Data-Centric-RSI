@@ -78,7 +78,7 @@ vllm serve Qwen/Qwen3-32B \
   --port 8001
 ```
 
-## 4. 配置实验一单 seed rehearsal
+## 4. 配置实验一完整 Pilot
 
 ```bash
 cp configs/experiment-one-single-seed.example.json \
@@ -93,7 +93,7 @@ ${EDITOR:-vi} configs/experiment-one-single-seed.local.json
 endpoint          Qwen3-8B 服务地址
 feedback_endpoint Qwen3-32B 服务地址
 base_model        Qwen3-8B 本地模型路径或模型 ID
-output            使用独立的 experiment-one rehearsal 输出目录
+output            使用独立的 experiment-one 完整 Pilot 输出目录
 ```
 
 保持：
@@ -113,9 +113,9 @@ max_steps        1000
 
 `max_steps` 是训练安全上限，`train_token_budget` 才是每个 adapter 的训练预算。全预算使用 `100000` token 时不能把 `max_steps` 设为 32，否则训练会在达到 token 预算前因安全上限退出。上次 pilot 的 `max_steps=32` 只与其 `2048` token 预算配套。
 
-`comparison: overall` 只运行实验一的两个实验组：`fixed_policy` 和 `recursive_policy`。每组 3 轮，共 6 次任务模型训练。每轮每组生成 32 个候选并收集 16 条 Qwen3-32B 模拟反馈。这是实验一计划预算的单 seed rehearsal，不是多 seed 确认性实验，也不包含 final-test 评价。更新消融和反馈选择对照属于后续实验，不在本配置中。
+`comparison: overall` 只运行实验一的两个实验组：`fixed_policy` 和 `recursive_policy`。每组 3 轮，共 6 次任务模型训练。每轮每组生成 32 个候选并收集 16 条 Qwen3-32B 模拟反馈。这是实验一计划预算的单 seed 完整 Pilot，不是多 seed 确认性实验，也不包含 final-test 评价。更新消融和反馈选择对照属于后续实验，不在本配置中。
 
-## 5. 运行实验一单 seed rehearsal
+## 5. 运行实验一完整 Pilot
 
 使用训练环境和独立训练 GPU。
 
@@ -150,7 +150,7 @@ for name, arm in data.get("arms", {}).items():
 PY
 ```
 
-rehearsal 必须满足：`status: completed`、`comparison: overall`、恰有 `fixed_policy` 和 `recursive_policy` 两个 arm 且各有 3 轮、每轮训练状态为 `completed`、每轮每组完成 16 条模型反馈、`feedback_mode: model`、`feedback_model: Qwen/Qwen3-32B`、`final_test_accessed: False`。同时确认递归组的策略更新记录及下一轮输入，固定组的策略版本保持不变。
+完整 Pilot 必须满足：`status: completed`、`comparison: overall`、恰有 `fixed_policy` 和 `recursive_policy` 两个 arm 且各有 3 轮、每轮训练状态为 `completed`、每轮每组完成 16 条模型反馈、`feedback_mode: model`、`feedback_model: Qwen/Qwen3-32B`、`final_test_accessed: False`。同时确认递归组的策略更新记录及下一轮输入，固定组的策略版本保持不变。
 
 pilot 失败时查看：
 
@@ -167,6 +167,6 @@ find runs/experiment-one-single-seed -type f | sort
   --resume
 ```
 
-## 7. 实验一 rehearsal 结束
+## 7. 实验一完整 Pilot 结束
 
 确认 `result.json` 的 `status` 为 `completed` 后，检查两个组、6 个组轮次、反馈请求、策略更新和 GPU 训练日志。该单 seed 结果用于验证实验一能否按计划执行，不作效果显著性或最终结论。通过后再开展实验二消融和实验三反馈选择对照。确认性实验使用冻结配置和多个预先指定的 seed；final-test 只在确认性运行完成并冻结分析方案后单独执行。

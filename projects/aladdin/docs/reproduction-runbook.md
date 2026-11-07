@@ -1,20 +1,20 @@
 # Aladdin 实验运行命令
 
-所有命令在 Linux 服务器的 `Data-Centric-RSI/projects/aladdin/` 目录执行。下面从环境和数据已按 `server-quickstart.md` 准备完成开始，依次运行五个 smoke。
+所有命令在 Linux 服务器的 `Data-Centric-RSI/projects/aladdin/` 目录执行。下面从环境和数据已按 `server-quickstart.md` 准备完成开始，先运行实验一至实验三的 smoke。
 
 ## 当前实验顺序
 
 | 顺序 | 实验 | 当前配置状态 |
 |---|---|---|
-| 1 | 整体效果：固定策略 vs 完整递归策略 | smoke：`experiment-one-smoke.example.json`；完整 rehearsal：`experiment-one-single-seed.example.json` |
+| 1 | 整体效果：固定策略 vs 完整递归策略 | 同一实验的两种运行规模：Smoke 验证 `experiment-one-smoke.example.json`；完整 Pilot `experiment-one-single-seed.example.json` |
 | 2 | 更新机制：合成/清洗/选择的 8 组因子实验 | smoke：`experiment-two-factorial-smoke.example.json`；pilot：`experiment-two-factorial.example.json` |
 | 3 | 反馈效率：固定候选池下的三种选择策略 | smoke：`experiment-three-selection-smoke.example.json`；固定池 pilot：`experiment-three-selection-fixed-pool.example.json` |
-| 4 | 少样本适用性：低/中/高初始数据量 | smoke 配置：`experiment-four-data-budget-smoke.example.json`；嵌套预算 sweep runner 已实现 |
-| 5 | 需求逐步明确：分轮释放新要求 | smoke 配置：`experiment-five-requirements-smoke.example.json`；受控要求释放与客观合规率已实现 |
+| 4 | 少样本适用性：低/中/高初始数据量 | 实验设计和 runner 已准备；当前不运行 smoke |
+| 5 | 需求逐步明确：分轮释放新要求 | 实验设计和 runner 已准备；当前不运行 smoke |
 
-依次运行实验一至实验五各自的 smoke；全部通过后再运行完整 rehearsal/pilot。Smoke 只验证执行链路、数据产物和指标生成，不支持方法效果结论。五个 smoke 都使用单 seed 和小预算，会实际调用 Qwen3-8B、Qwen3-32B，并在训练 GPU 上执行 LoRA 训练。
+研究实验一只有一个，比较固定策略与完整递归策略。`experiment-one-smoke.example.json` 和 `experiment-one-single-seed.example.json` 是同一实验的两种运行规模：前者是小预算 Smoke，用于检查执行链路；后者是完整 Pilot，用于检查计划预算下的端到端运行。当前先运行实验一至实验三各自的 Smoke；实验一至实验三的 Smoke 只验证执行链路、数据产物和指标生成，不支持方法效果结论。实验四和实验五暂不纳入本轮 Smoke 执行。
 
-**执行顺序：**先运行本文件中的“实验一 smoke”至“实验五 smoke”五节。中间出现的“完整配置 rehearsal”“完整因子实验”“固定候选池下的反馈选择”先不要运行；等五个 smoke 全部通过后，再运行这些完整配置。
+**执行顺序：**先运行本文件中的“实验一 Smoke 验证”“实验二 Smoke”“实验三 Smoke”三节。三项 Smoke 全部通过后，再运行实验一完整 Pilot、实验二完整因子实验和实验三完整反馈选择。实验四、实验五暂不运行，待其正式实验方案和验收标准冻结后再补充执行命令。
 
 ## 环境、数据和模型服务
 
@@ -45,7 +45,7 @@ nvidia-smi
 
 以下每个实验都按“复制配置、检查/修改配置、检查服务、运行、分析、验收”顺序执行。复制命令只在首次准备该 smoke 配置时执行；已有 `.local.json` 时保留并继续使用，不要覆盖本地配置。
 
-## 实验一 smoke：单 seed、1 轮、小预算
+## 实验一 Smoke 验证：单 seed、1 轮、小预算
 
 复制独立 smoke 配置。首次运行时将三个服务/路径字段改成服务器实际值：`endpoint`、`feedback_endpoint`、`base_model`。若输出目录已经存在，在配置中把 `output` 改成新的目录：
 
@@ -147,9 +147,9 @@ for name, arm in data.get("arms", {}).items():
 PY
 ```
 
-## 实验一：单 seed 完整配置 rehearsal
+## 实验一完整 Pilot：单 seed、完整计划预算
 
-Smoke 通过后，按 [server-quickstart.md](server-quickstart.md) 第 4 步创建 `configs/experiment-one-single-seed.local.json`，确认恢复为示例完整预算：3 轮、每组每轮 32 个候选和 16 条反馈、每 adapter 100000 训练 token。
+实验一 Smoke 通过后，按 [server-quickstart.md](server-quickstart.md) 第 4 步创建 `configs/experiment-one-single-seed.local.json`，确认使用完整计划预算：3 轮、每组每轮 32 个候选和 16 条反馈、每 adapter 100000 训练 token。它仍是实验一，不是新增的实验。
 
 ```bash
 .venv/bin/python -m scripts.check_model_services \
@@ -163,7 +163,7 @@ Smoke 通过后，按 [server-quickstart.md](server-quickstart.md) 第 4 步创�
   --output runs/experiment-one-single-seed/analysis.json
 ```
 
-配置文件 `configs/experiment-one-single-seed.example.json` 使用实验一的 `overall` 对照，仅设置一个 seed（17）。它包含 `fixed_policy` 和 `recursive_policy` 两个实验组、3 轮、每轮每组 32 个候选和 16 条 Qwen3-32B 模拟反馈；每个 adapter 的训练 token 预算为 100000，`max_steps=1000` 是安全上限。此运行验证实验一的完整配置能否执行，不是多 seed 确认性结果，也不运行 final-test。
+配置文件 `configs/experiment-one-single-seed.example.json` 使用实验一的 `overall` 对照，仅设置一个 seed（17）。它包含 `fixed_policy` 和 `recursive_policy` 两个实验组、3 轮、每轮每组 32 个候选和 16 条 Qwen3-32B 模拟反馈；每个 adapter 的训练 token 预算为 100000，`max_steps=1000` 是安全上限。此完整 Pilot 验证实验一的计划预算能否执行，不是多 seed 确认性结果，也不运行 final-test。
 
 检查：
 
@@ -193,9 +193,9 @@ PY
   --resume
 ```
 
-## rehearsal 结束
+## 实验一完整 Pilot 结束
 
-确认两个组各 3 轮全部完成后，检查训练预算、反馈尝试日志和递归组策略版本变化。实验一 rehearsal 通过后，再运行实验二消融和实验三反馈选择；正式实验沿用冻结配置，只把 seeds 替换成预先确定的多 seed 列表。final-test 另行执行。
+确认两个组各 3 轮全部完成后，检查训练预算、反馈尝试日志和递归组策略版本变化。实验一完整 Pilot 通过后，再运行实验二消融和实验三反馈选择；正式实验沿用冻结配置，只把 seeds 替换成预先确定的多 seed 列表。final-test 另行执行。
 
 ## 实验二：三项更新的完整因子实验
 
@@ -266,85 +266,9 @@ PY
 
 完成条件：`status` 为 `completed`、`comparison` 为 `selection`、结果含 `query_random`、`query_uncertainty`、`query_feedback_value` 三个 arm，且每个 arm 完成 1 轮、每 arm 反馈数相同、训练状态为 `completed`，并且 `final_test_accessed` 为 `false`。三组 round-0 的生成候选语义多重集应相同；不相同则本次不能用于选择策略的干净对照。
 
-## 实验四：少样本适用性
+## 实验四、实验五
 
-运行低/高两个小预算档，确认 sweep、嵌套 seed groups、两组训练及配对差汇总可用：
-
-```bash
-test -e configs/experiment-four-data-budget-smoke.local.json || cp configs/experiment-four-data-budget-smoke.example.json configs/experiment-four-data-budget-smoke.local.json
-${EDITOR:-vi} configs/experiment-four-data-budget-smoke.local.json
-
-"$PYTHON_BIN" -m scripts.check_model_services \
-  --config configs/experiment-four-data-budget-smoke.local.json
-
-"$PYTHON_BIN" -m scripts.run_data_budget_sweep \
-  --config configs/experiment-four-data-budget-smoke.local.json
-```
-
-自动检查 sweep 汇总、两档运行结果和配对差：
-
-```bash
-"$PYTHON_BIN" - "runs/experiment-four-data-budget-smoke/sweep-summary.json" <<'PY'
-import json, sys
-from pathlib import Path
-
-data = json.load(open(sys.argv[1], encoding="utf-8"))
-assert data.get("status") == "completed", data.get("status")
-assert data.get("comparison") == "data_budget_sweep", data.get("comparison")
-assert data.get("nested_budgets") is True
-assert data.get("seed_group_limits") == [2, 4]
-assert len(data.get("runs", [])) == 2
-for run in data["runs"]:
-    assert set(run.get("arms", {})) == {"fixed_policy", "recursive_policy"}
-    result_path = Path(run["output"]) / "result.json"
-    result = json.loads(result_path.read_text(encoding="utf-8"))
-    assert result.get("status") == "completed", result_path
-    assert set(result.get("arms", {})) == {"fixed_policy", "recursive_policy"}
-    for arm in result["arms"].values():
-        assert len(arm.get("rounds", [])) == 1
-        assert arm["rounds"][0]["training"].get("status") == "completed"
-    delta = next(row for row in data["paired_development_deltas"]
-                 if row["seed_group_limit"] == run["seed_group_limit"])
-    assert "17" in delta["per_seed_recursive_minus_fixed"]
-    print("budget", run["seed_group_limit"], "OK:", result_path)
-print("Experiment 4 smoke: PASS")
-PY
-```
-
-通过条件：`status=completed`、`comparison=data_budget_sweep`、`nested_budgets=true`、预算档为 `[2,4]`；`runs` 中两档各有 `fixed_policy` 和 `recursive_policy`，对应的 `result.json` 均存在且状态为 `completed`；每档的 `paired_development_deltas` 都含 seed `17`。正式实验使用预先冻结的低/中/高组数，并在 seed-level 配对分析中检验策略与数据量交互。
-
-## 实验五：需求逐步明确
-
-smoke 使用 3 轮：第 2 轮开始前释放一条客观长度要求，检查递归策略能否把该要求带入第 3 轮合成提示，并输出逐轮合规率。smoke 中的 schedule 是受控测试输入，不是真人偏好数据。
-
-```bash
-test -e configs/experiment-five-requirements-smoke.local.json || cp configs/experiment-five-requirements-smoke.example.json configs/experiment-five-requirements-smoke.local.json
-${EDITOR:-vi} configs/experiment-five-requirements-smoke.local.json
-
-"$PYTHON_BIN" -m scripts.check_model_services --config configs/experiment-five-requirements-smoke.local.json
-"$PYTHON_BIN" -m experiments.rsi --config configs/experiment-five-requirements-smoke.local.json
-"$PYTHON_BIN" -m scripts.analyze_feedback_rsi \
-  runs/experiment-five-requirements-smoke/result.json \
-  --output runs/experiment-five-requirements-smoke/analysis.json
-```
-
-完成条件：`status=completed`、`comparison=requirements`、fixed/recursive/full-requirement-reference 三组各 3 轮、`final_test_accessed=false`；第 2 轮反馈记录含 `requirement_release.source=controlled_requirement_schedule`；recursive 第 3 轮策略状态包含新要求；每轮 `requirement_compliance` 中有该要求的 `rate`。此 smoke 验证要求释放机制和指标产出，不证明真实用户适应效果。
-
-打印关键结果：
-
-```bash
-"$PYTHON_BIN" - "runs/experiment-five-requirements-smoke/result.json" "runs/experiment-five-requirements-smoke/analysis.json" <<'PY'
-import json, sys
-run = json.load(open(sys.argv[1], encoding="utf-8"))
-print("status:", run.get("status"), "comparison:", run.get("comparison"))
-print("arms:", sorted(run.get("arms", {})))
-print("final_test_accessed:", run.get("data", {}).get("final_test_accessed"))
-for name, arm in run.get("arms", {}).items():
-    print(name, "rounds:", len(arm.get("rounds", [])), "compliance:", [r.get("requirement_compliance") for r in arm.get("rounds", [])])
-analysis = json.load(open(sys.argv[2], encoding="utf-8"))
-print("analysis keys:", list(analysis))
-PY
-```
+实验四和实验五的 runner、配置草案和测试代码已保留在仓库中，但当前不作为 smoke 执行。待两项实验的正式问题、预算、对照组和验收指标冻结后，再补充正式运行命令。
 
 ## 支撑验证和最终盲评
 

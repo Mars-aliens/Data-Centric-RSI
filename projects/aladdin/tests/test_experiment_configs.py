@@ -28,21 +28,21 @@ def test_every_example_rsi_config_validates():
         "experiment-one-smoke.example.json",
         "experiment-two-factorial-smoke.example.json",
         "experiment-three-selection-smoke.example.json",
-        "experiment-four-data-budget-smoke.example.json",
-        "experiment-five-requirements-smoke.example.json",
+        "experiment-four-data-budget-draft.example.json",
+        "experiment-five-requirements-draft.example.json",
     }
 
 
-def test_experiment_five_requirements_smoke_config_has_release_schedule():
-    config = json.loads((ROOT / "configs" / "experiment-five-requirements-smoke.example.json").read_text(encoding="utf-8"))
+def test_experiment_five_requirements_draft_config_has_release_schedule():
+    config = json.loads((ROOT / "configs" / "experiment-five-requirements-draft.example.json").read_text(encoding="utf-8"))
     validated = _validate_config(config)
     assert validated["comparison"] == "requirements"
     assert validated["arms"] == ["fixed_policy", "recursive_policy", "full_requirement_reference"]
     assert validated["requirement_schedule"][0]["release_round"] == 1
 
 
-def test_experiment_four_data_budget_smoke_config_has_nested_limits():
-    config = json.loads((ROOT / "configs" / "experiment-four-data-budget-smoke.example.json").read_text(encoding="utf-8"))
+def test_experiment_four_data_budget_draft_config_has_nested_limits():
+    config = json.loads((ROOT / "configs" / "experiment-four-data-budget-draft.example.json").read_text(encoding="utf-8"))
     assert config["seed_group_limits"] == [2, 4]
     assert config["comparison"] == "data_budget"
 
