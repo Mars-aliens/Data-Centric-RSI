@@ -2,7 +2,7 @@
 
 MLE-LEGO 是面向 Data-Centric Recursive Self-Improvement（RSI）的模块化研究项目，研究 Data System 如何在持续运行中改进自身，并保持长期稳定执行。优化主体是 Data System 的整体运行方法，其中 Harness 是主要改进载体，同时覆盖数据构建、数据选择与清洗、模型更新、评价、反馈、Memory 和 Skill 等环节。
 
-项目的三个技术点都服务于同一个目标：让 Data System 在长周期运行中能够持续改进、控制错误累积、正确使用延迟反馈，并在更新失败时恢复。既有正式实验仍集中于技术一；目前已新增 T1/T2/T3 集成接口骨架和本地测试，但技术二、技术三的研究策略、真实任务适配及长周期收益尚未实现或验证。
+项目的三个技术点都服务于同一个目标：让 Data System 在长周期运行中能够持续改进、控制错误累积、正确使用延迟反馈，并在更新失败时恢复。当前三个实验分别是候选修改隔离与运行连续性、数据经验持续治理、延迟反馈归因与多批次版本选择。候选修改隔离实验是当前首先验证的实验；数据经验治理实验已有四臂 runner 与工程 smoke 协议；延迟反馈实验已有基于候选修改隔离结果的来源归因离线回放入口。后两项尚未在真实服务器数据与目标运行条件下完成，在线版本晋升/回滚也尚未实现。
 
 三个技术点的固定名称与定义见[MLE-LEGO 固定技术点](docs/technical-points.md)，后续研究说明和实验实现均以该文档为准。
 
@@ -15,8 +15,8 @@ code/
 ├── core_system/mle_core/          共享接口、运行时、数据与预算
 ├── technologies/
 │   ├── technology_one/             长周期任务流、固定流水线与候选安全门
-│   ├── technology_two/             经验生命周期管理（接口骨架）
-│   └── technology_three/           后续表现驱动的版本保留（接口骨架）
+│   ├── technology_two/             数据经验治理与四臂长周期实验
+│   └── technology_three/           延迟反馈归因与多批次版本选择回放
 ├── integration/                    跨技术运行时（接口骨架）
 experiments/                        协议、清单和结果索引
 docs/                               研究、服务器与贡献者指南
@@ -30,7 +30,7 @@ data/                               仅含说明；数据集放在仓库之外
 
 研究对象是 Data System 的整体运行方法：数据构建与质量、Task Model 更新、评价、反馈、Memory/Skill、工具和 Harness 控制流程。RSI 周期采用混合方式：离线固定可复现初始系统，之后按任务批次运行、接收已到期反馈并更新。
 
-新研究按 T1 → T2 → T3 构建：T1 隔离候选修改并让失败不污染稳定运行；T2 对可执行经验/Skill 做来源追踪、适用性验证、冲突治理和失效处理；T3 将延迟反馈归给正确版本，根据多个后续批次决定保留、继续观察或回退。三者最终在同一运行框架中组合，且每一项都单独评估长周期稳定性。
+新研究按候选修改隔离与运行连续性 → 数据经验持续治理 → 延迟反馈归因与多批次版本选择逐步构建：前者隔离候选修改并让失败不污染稳定运行；中者对可执行经验/Skill 做来源追踪、适用性验证、冲突治理和失效处理；后者将延迟反馈归给正确版本，根据多个后续批次决定保留、继续观察或回退。三者最终在同一运行框架中组合，且每一项都单独评估长周期稳定性。代码目录和命令参数中的 `T1/T2/T3` 是兼容现有实现的内部标识。
 
 当前共同任务定义是 HelpSteer2 prompt-group 质量分类的受控流式回放。数据集没有自然时间戳或用户会话，延迟反馈是对已有评分标签的实验控制，不是真人在线反馈。数据划分、信息边界和评价规则以
 [长周期任务定义](docs/long-horizon-task-definition.md) 为准。
@@ -41,7 +41,8 @@ data/                               仅含说明；数据集放在仓库之外
 - 固定流水线 baseline：先用当前 checkpoint 预测本批；再释放到期标签，并用 seed + 已释放反馈续训 parent checkpoint。
 - 运行可靠性：逐批原子状态、命令尝试日志、检查点来源链和配置/任务哈希。
 - T1：本地已接通受限数据策略提案、固定可信 runner、独立 candidate 输出与 checkpoint 分支、stable parent 哈希核验和故障注入接口。默认 `local_shadow` 不执行任意候选代码，不提供容器/网络/CPU/内存硬隔离；真实服务器数据和 GPU smoke 尚待执行。Kubernetes 是可选增强 backend。
-- T2/T3：经验生命周期、反馈归因和多批次版本选择仍是机制骨架，尚未完成真实 runner 端到端集成和长周期实验。
+- T2：可执行经验治理的四臂 runner 已接入固定 HelpSteer2/Qwen 长周期流，实验协议和服务器命令已提供；真实数据/GPU smoke 和 pilot 未运行。
+- T3：已提供 T1 完整 run 的反馈轨迹构造、三类选择策略离线回放及矩阵汇总；未实现在线晋升/回滚，真实多种子回放尚待运行。
 
 本地测试不需要 GPU，但真实任务模型 smoke、服务器真实数据 manifest、正式故障注入和多随机种子评估都尚未完成。当前代码状态与下一道门槛见
 [docs/current-status.md](docs/current-status.md)。
@@ -51,6 +52,9 @@ data/                               仅含说明；数据集放在仓库之外
 ## 从这里开始
 
 项目主要入口文档如下：
+
+- **当前实验方案：** [experiments/current-experiment-plan-v2.md](experiments/current-experiment-plan-v2.md) 规定 10 个 QA、baseline、数据流、指标、执行阶段、结果文件和结论边界。
+- **详细实验蓝图：** [experiments/experiment-blueprint-v1.md](experiments/experiment-blueprint-v1.md) 保存更细的审计字段和统计设计。
 
 - **README.md：** 安装和实验入口。
 - **服务器手册：** [docs/server-quickstart.md](docs/server-quickstart.md) 是当前服务器执行入口。

@@ -221,6 +221,10 @@ class WindowedVersionSelector:
     def candidate(self, candidate_id: str) -> CandidateVersion:
         return self._get_window(candidate_id).candidate
 
+    def observed_batch_count(self, candidate_id: str) -> int:
+        """Return the number of observations without exposing window state."""
+        return len(self._get_window(candidate_id).comparisons)
+
     def _get_window(self, candidate_id: str) -> _CandidateWindow:
         try:
             return self._windows[candidate_id]

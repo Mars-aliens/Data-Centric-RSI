@@ -1,0 +1,13 @@
+{
+  "window_batches": 3,
+  "min_mean_gain": 0.0,
+  "max_regression": 0.05,
+  "policies": [
+    "single_source_batch",
+    "arrival_as_current",
+    "source_attributed_window"
+  ],
+  "candidate_failure_policy": "reject_candidate",
+  "held_out_used": false,
+  "final_test_used": false
+}

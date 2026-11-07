@@ -1,6 +1,6 @@
 # 技术三：基于后续运行表现的更新保留与回退
 
-状态：反馈归因与多批次决策接口骨架已实现；研究策略、真实任务适配和长周期实验尚未完成。
+状态：来源版本反馈离线回放与三类选择策略已实现；在线晋升/回滚闭环及真实多种子实验尚未完成。
 
 技术三用直白的话说，就是观察系统修改后的后续表现，再决定这次更新要不要留下。为此，它要处理即时/延迟反馈和任务分布变化，并把反馈归因到产生它时的数据、模型、Memory/Skill 和 Harness 版本，避免根据错配结果作决定。
 
@@ -15,4 +15,4 @@
 
 技术三必须复用 `core_system.mle_core` 的版本、预算、反馈和事件契约，并遵守统一的 held-in、held-out 与 final-test 隔离规则。它不是唯一负责长期稳定性的技术，而是将前两个技术产生的更新和经验放入连续反馈环境中进行安全选择。
 
-当前 `WindowedVersionSelector` 只接收 T1 安全门通过的候选，按成对批次观察，并将反馈标记为当前、历史或未知版本；`PairedMeanRetentionPolicy` 是可替换的占位基线。正式方法仍需确定并预注册观察窗口、质量/稳定性权衡、资源约束和决策阈值。
+`trace_evaluation.py` 从 T1 summary 生成来源版本配对轨迹，并离线比较单批决策、到达顺序误归因诊断基线和来源归因多批决策。执行步骤见[`experiments/technology_three/protocol-v1.md`](../../../experiments/technology_three/protocol-v1.md)。`WindowedVersionSelector` 仍是 runtime 接口；离线 replay 不会实际晋升或切换线上版本。正式方法仍需在 pilot 后冻结窗口、阈值、反馈延迟矩阵、统计方案及在线故障/回滚验证。

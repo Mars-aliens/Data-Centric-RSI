@@ -105,6 +105,7 @@ class LongHorizonQwenRunner:
         command_runner: Callable[[JsonCommand, dict[str, Any]], dict[str, Any]] = run_json_command,
         on_batch: Callable[[dict[str, Any]], None] | None = None,
         candidate_shadow: Any | None = None,
+        training_data_policy: Any | None = None,
     ):
         if not run_id.strip():
             raise ValueError("run_id must be non-empty")
@@ -120,6 +121,7 @@ class LongHorizonQwenRunner:
         self.command_runner = command_runner
         self.on_batch = on_batch
         self.candidate_shadow = candidate_shadow
+        self.training_data_policy = training_data_policy
         self.state_path = self.root / "run_state.json"
         self.attempt_log_path = self.root / "command_attempts.jsonl"
         self._manifest_hash = _canonical_hash(task.agent_view.manifest)
@@ -135,6 +137,8 @@ class LongHorizonQwenRunner:
         }
         if self.candidate_shadow is not None:
             config_identity["candidate_shadow"] = self.candidate_shadow.run_signature()
+        if self.training_data_policy is not None:
+            config_identity["training_data_policy"] = self.training_data_policy.run_signature()
         self._config_hash = _canonical_hash(config_identity)
         self.state = self._load_or_initialize()
 
@@ -156,6 +160,7 @@ class LongHorizonQwenRunner:
             "released_feedback": [],
             "batch_history": [],
             "candidate_history": [],
+            "training_data_policy_state": {},
             "total_cost": {
                 "training_steps": 0,
                 "training_records_seen": 0,
@@ -184,6 +189,7 @@ class LongHorizonQwenRunner:
             if mismatches:
                 raise ValueError(f"run state does not match this invocation: {mismatches}")
             state.setdefault("candidate_history", [])
+            state.setdefault("training_data_policy_state", {})
             scheduler_index = int(state["task_state"]["scheduler"]["next_batch_index"])
             if (
                 state.get("completed_batches") != scheduler_index
@@ -398,6 +404,11 @@ class LongHorizonQwenRunner:
             "candidate_shadow": (
                 self.candidate_shadow.run_metadata()
                 if self.candidate_shadow is not None
+                else None
+            ),
+            "training_data_policy": (
+                self.training_data_policy.run_metadata(self.state.get("training_data_policy_state", {}))
+                if self.training_data_policy is not None
                 else None
             ),
             "task_manifest_sha256": self._manifest_hash,
@@ -621,6 +632,7 @@ class LongHorizonQwenRunner:
 
                 active_checkpoint = prediction_checkpoint
                 train_cost: dict[str, int | float] = {}
+                training_data_audit = None
                 if released:
                     training_records = [
                         item.to_dict() for item in self.task.agent_view.seed_examples
@@ -632,6 +644,21 @@ class LongHorizonQwenRunner:
                         }
                         for item in state["released_feedback"]
                     ]
+                    if self.training_data_policy is not None:
+                        training_records, training_data_audit, policy_state = (
+                            self.training_data_policy.prepare(
+                                training_records,
+                                newly_released=released,
+                                released_metrics=[item.to_dict() for item in current.released_metrics],
+                                batch_index=current.batch.batch_index,
+                                state=state.get("training_data_policy_state", {}),
+                                task_manifest=self.task.agent_view.manifest,
+                                run_id=self.run_id,
+                                source_version_id=prediction_version_id,
+                                source_batch_id=current.batch.batch_id,
+                            )
+                        )
+                        state["training_data_policy_state"] = policy_state
                     active_checkpoint, train_cost = self._train(
                         training_records,
                         parent=prediction_checkpoint,
@@ -650,6 +677,8 @@ class LongHorizonQwenRunner:
                     "active_model_version_after_batch": _checkpoint_version(active_checkpoint),
                     "cost": {"training": train_cost, "prediction": predict_cost},
                 }
+                if training_data_audit is not None:
+                    batch_result["training_data_policy"] = training_data_audit
                 if candidate_trial is not None:
                     batch_result["candidate_trial"] = {
                         key: value

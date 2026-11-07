@@ -186,6 +186,41 @@ class LongHorizonTaskTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "max_batches must be positive"):
             LongHorizonTaskConfig(max_batches=0)
 
+    def test_stream_regimes_are_reproducible_and_record_batch_label_mix(self) -> None:
+        for regime in ("randomized", "interleaved", "abrupt", "alternating"):
+            config = LongHorizonTaskConfig(
+                stream_seed=23,
+                groups_per_batch=20,
+                feedback_delay_batches=2,
+                stream_regime=regime,
+            )
+            first = prepare_helpsteer2_long_horizon_task(
+                rows_for("train", 800), rows_for("validation", 30), config=config
+            )
+            second = prepare_helpsteer2_long_horizon_task(
+                rows_for("train", 800), rows_for("validation", 30), config=config
+            )
+            manifest = first.agent_view.manifest
+            self.assertEqual(
+                manifest["stream_schedule_sha256"],
+                second.agent_view.manifest["stream_schedule_sha256"],
+            )
+            self.assertEqual(manifest["stream_regime"], regime)
+            self.assertEqual(
+                len(manifest["development_batch_label_counts"]),
+                first.scheduler.batch_count,
+            )
+            for batch in manifest["development_batch_label_counts"]:
+                self.assertEqual(
+                    set(batch["label_counts"]),
+                    {"preferred", "rejected", "tie"},
+                )
+                self.assertAlmostEqual(sum(batch["label_proportions"].values()), 1.0)
+
+    def test_stream_regime_must_be_supported(self) -> None:
+        with self.assertRaisesRegex(ValueError, "stream_regime"):
+            LongHorizonTaskConfig(stream_regime="uncontrolled")
+
     def test_terminal_metrics_are_reported_without_agent_feedback(self) -> None:
         task = self._task(delay=0)
         observed = []

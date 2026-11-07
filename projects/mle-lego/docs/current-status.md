@@ -20,7 +20,7 @@ MLE-LEGO 的统一目标是保障 Data System 的长周期稳定执行与持续�
 
 本地已实现 T1 受限数据策略提案、候选 bundle manifest/哈希校验、Decision LLM 兼容接口、固定可信 runner、candidate 私有 checkpoint/output、stable parent 哈希核验和故障注入。`local_shadow` 的隔离证据是候选分支输出与 stable 状态分开；它不是任意代码沙箱，CPU/内存限制不作强制保证。Kubernetes backend 保留为可选增强。长周期任务流支持通过 `max_batches` 设置 pilot 周期数。候选通过安全检查后进入观察，不会自动提升为稳定版本；候选运行失败时稳定 runner 继续。跨技术版本晋升由 T3 的多批次策略负责。
 
-T2/T3 当前代码属于可测试的机制骨架；配对均值策略是占位策略。T1 runner 尚未在真实服务器上验证模型 endpoint、GPU 和真实数据运行；三个技术点的组合及正式长周期实验均未完成。设计说明见 `docs/evolution-runtime-architecture.md`，T1 具体步骤见 `docs/technology-one-safe-evolution-runbook.md`。
+T2 已有四臂 HelpSteer2/Qwen runner、经验数据策略、运行状态持久化、逐批数据选择审计和工程 pilot 协议；尚未在真实服务器数据/GPU 上 smoke。T2 治理规则当前固定为类别重放上限，验证条件变化时的治理行为，不代表通用经验管理已解决。T3 已有从 T1 summary 构造来源版本反馈轨迹、单批/到达归因/多批策略离线回放与结果汇总入口；真实多种子回放尚未执行。跨技术集成 runtime 已实现 2×2×2 配置校验、候选观察/晋升、晋升后退化回退、事件恢复和本地 fake smoke；真实 HelpSteer2/Qwen 组合运行及正式长周期实验仍待服务器执行。
 
 ## 新长周期任务流
 
@@ -31,6 +31,6 @@ train-group 划分、每批 50 个 prompt groups、流式顺序和反馈释放�
 parent checkpoint 续训、先预测后更新和逐批原子状态保存。run 工件还包括命令尝试账本、每批可信预测及 checksum、
 已释放反馈上的合并预序列指标和任务/模型/命令配置哈希。
 
-本地 fake-command 测试覆盖反馈时序、断点恢复、增量训练数据边界、流前缀限制、提案校验、候选版本绑定和候选分支隔离契约；另有确定性、默认策略的 T1 fixture 用于验证可信 runner 部署链路，它不属于 RSI 实验候选。尚未在真实 HelpSteer2 文件及真实 GPU 上 smoke。`local_shadow` 故障注入目前由本地测试覆盖，服务器端到端故障运行仍待执行。T1/T2/T3 runtime 的端到端组合也未完成。
+本地 fake-command 测试覆盖反馈时序、断点恢复、增量训练数据边界、流前缀限制、提案校验、候选版本绑定、候选分支隔离和跨技术组合契约；另有确定性、默认策略的 T1 fixture 用于验证可信 runner 部署链路，它不属于 RSI 实验候选。尚未在真实 HelpSteer2 文件及真实 GPU 上 smoke。`local_shadow` 故障注入和跨技术回退目前由本地测试覆盖，服务器端到端故障运行仍待执行。
 
 实验按[技术一实验协议 v1](../experiments/technology_one/protocol-v1.md)推进：先完成 4 周期 `local_shadow` smoke，再运行 10～20 周期 pilot。根据稳定性、候选分支隔离、恢复能力和资源成本决定正式实验规模。周期性候选提案调度、多候选恢复和服务器真实数据/模型/GPU 预检仍待完成；pilot 结果不作为正式方法结论。

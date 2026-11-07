@@ -13,6 +13,7 @@ from .long_horizon_task import (
     prepare_helpsteer2_long_horizon_task,
 )
 from .server_adapters import JsonCommand
+from technologies.technology_two.experiment_policy import ExperienceTrainingPolicy
 
 
 def _rows(prefix: str, count: int) -> list[dict[str, Any]]:
@@ -218,6 +219,46 @@ class LongHorizonQwenRunnerTests(unittest.TestCase):
             self.assertEqual(
                 runner.state["task_state"]["scheduler"]["next_batch_index"], 1
             )
+
+    def test_t2_policy_state_and_batch_audit_survive_resume(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory) / "run"
+            fake = FakeQwenCommand(fail_on_prediction=2)
+            task = _task()
+            runner = LongHorizonQwenRunner(
+                task,
+                command=JsonCommand.from_value(("fake-qwen",)),
+                config={"max_steps": 2, "base_model_path": "local-test-model"},
+                output_dir=root,
+                run_id="t2-runner-integration",
+                seed=23,
+                command_runner=fake,
+                training_data_policy=ExperienceTrainingPolicy("lifecycle_governed"),
+            )
+            with self.assertRaisesRegex(RuntimeError, "injected prediction interruption"):
+                runner.run()
+            committed_batches = runner.state["completed_batches"]
+            resumed = LongHorizonQwenRunner(
+                _task(),
+                command=JsonCommand.from_value(("fake-qwen",)),
+                config={"max_steps": 2, "base_model_path": "local-test-model"},
+                output_dir=root,
+                run_id="t2-runner-integration",
+                seed=23,
+                command_runner=FakeQwenCommand(),
+                training_data_policy=ExperienceTrainingPolicy("lifecycle_governed"),
+            )
+            self.assertEqual(resumed.state["completed_batches"], committed_batches)
+            summary = resumed.run()
+            audits = [
+                batch["training_data_policy"]
+                for batch in summary["batch_history"]
+                if "training_data_policy" in batch
+            ]
+            self.assertTrue(audits)
+            self.assertEqual(summary["training_data_policy"]["arm"], "lifecycle_governed")
+            self.assertFalse(summary["held_out_used"])
+            self.assertFalse(summary["final_test_used"])
             attempts = [
                 json.loads(line)
                 for line in (Path(directory) / "run" / "command_attempts.jsonl")

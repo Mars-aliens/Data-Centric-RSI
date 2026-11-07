@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -18,6 +19,7 @@ SCORE_FIELDS = (
 )
 DATASET_REVISION = "990b2711a36180dd19d9c94b8627844866f8982a"
 TASK_DEFINITION_VERSION = "mle-lego-long-horizon-task-v1"
+STREAM_REGIMES = ("randomized", "interleaved", "abrupt", "alternating")
 
 
 class TaskIntegrityError(ValueError):
@@ -47,6 +49,7 @@ class LongHorizonTaskConfig:
     groups_per_batch: int = 50
     feedback_delay_batches: int = 2
     max_batches: int | None = None
+    stream_regime: str = "randomized"
     seed_percent: int = 10
     development_percent: int = 60
     held_in_percent: int = 15
@@ -60,6 +63,8 @@ class LongHorizonTaskConfig:
             raise ValueError("feedback_delay_batches must be one of 0, 2, 5")
         if self.max_batches is not None and self.max_batches < 1:
             raise ValueError("max_batches must be positive when set")
+        if self.stream_regime not in STREAM_REGIMES:
+            raise ValueError(f"stream_regime must be one of {', '.join(STREAM_REGIMES)}")
         percentages = (
             self.seed_percent,
             self.development_percent,
@@ -218,6 +223,53 @@ class _Group:
     split: str
     prompt: str
     records: tuple[_GoldRecord, ...]
+
+
+def _dominant_group_label(group: _Group) -> str:
+    counts = Counter(record.target for record in group.records)
+    return max(LABELS, key=lambda label: (counts[label], -LABELS.index(label)))
+
+
+def _order_development_groups(
+    groups: list[_Group], *, stream_seed: int, regime: str, groups_per_batch: int
+) -> list[_Group]:
+    by_label: dict[str, list[_Group]] = {label: [] for label in LABELS}
+    for group in groups:
+        by_label[_dominant_group_label(group)].append(group)
+    for label_groups in by_label.values():
+        label_groups.sort(
+            key=lambda group: _sha256(f"{stream_seed}:{group.group_id}".encode("utf-8"))
+        )
+
+    if regime == "randomized":
+        return sorted(
+            groups,
+            key=lambda group: _sha256(f"{stream_seed}:{group.group_id}".encode("utf-8")),
+        )
+    if regime == "abrupt":
+        return [group for label in LABELS for group in by_label[label]]
+    if regime == "interleaved":
+        result: list[_Group] = []
+        positions = {label: 0 for label in LABELS}
+        while len(result) < len(groups):
+            for label in LABELS:
+                position = positions[label]
+                if position < len(by_label[label]):
+                    result.append(by_label[label][position])
+                    positions[label] += 1
+        return result
+    if regime == "alternating":
+        result = []
+        positions = {label: 0 for label in LABELS}
+        block_size = groups_per_batch * 2
+        while len(result) < len(groups):
+            for label in LABELS:
+                start = positions[label]
+                stop = min(start + block_size, len(by_label[label]))
+                result.extend(by_label[label][start:stop])
+                positions[label] = stop
+        return result
+    raise ValueError(f"unsupported stream regime: {regime}")
 
 
 def _score_row(row: Mapping[str, Any]) -> dict[str, float]:
@@ -753,11 +805,14 @@ def prepare_helpsteer2_long_horizon_task(
                 raise TaskIntegrityError(f"duplicate normalized record ID: {record.record_id}")
             seen_record_ids.add(record.record_id)
 
-    dev_groups = sorted(
+    dev_groups = _order_development_groups(
         by_split["development"],
-        key=lambda group: _sha256(f"{config.stream_seed}:{group.group_id}".encode("utf-8")),
+        stream_seed=config.stream_seed,
+        regime=config.stream_regime,
+        groups_per_batch=config.groups_per_batch,
     )
     all_batches: list[StreamBatch] = []
+    batch_label_counts: list[dict[str, Any]] = []
     for start in range(0, len(dev_groups), config.groups_per_batch):
         group_slice = dev_groups[start : start + config.groups_per_batch]
         batch_index = len(all_batches)
@@ -778,6 +833,20 @@ def prepare_helpsteer2_long_horizon_task(
                 source_group_ids=tuple(group.group_id for group in group_slice),
                 records=observed,
             )
+        )
+        label_counts = Counter(
+            record.target for group in group_slice for record in group.records
+        )
+        record_count = sum(label_counts.values())
+        batch_label_counts.append(
+            {
+                "batch_index": batch_index,
+                "record_count": record_count,
+                "label_counts": {label: label_counts[label] for label in LABELS},
+                "label_proportions": {
+                    label: label_counts[label] / record_count for label in LABELS
+                },
+            }
         )
     if not all_batches:
         raise TaskIntegrityError("development split produced no stream batches")
@@ -841,6 +910,8 @@ def prepare_helpsteer2_long_horizon_task(
             "final_test": "official validation split",
         },
         "stream_seed": config.stream_seed,
+        "stream_regime": config.stream_regime,
+        "stream_order_algorithm": "dominant-label-order-v1",
         "groups_per_batch": config.groups_per_batch,
         "max_batches": config.max_batches,
         "feedback_delay_batches": config.feedback_delay_batches,
@@ -865,6 +936,7 @@ def prepare_helpsteer2_long_horizon_task(
             split: _sha256(_canonical_json(ids)) for split, ids in split_group_ids.items()
         },
         "stream_schedule_sha256": _sha256(_canonical_json(stream_schedule)),
+        "development_batch_label_counts": batch_label_counts[: len(batches)],
         "feedback_visibility": "development labels and raw scores are absent until release",
         "evaluation": "prequential predictions are scored only after their labels release",
     }
